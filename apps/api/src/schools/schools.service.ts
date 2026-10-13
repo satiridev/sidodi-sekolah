@@ -154,6 +154,11 @@ export class SchoolsService {
       'head_of_administration',
       'operator',
     ]);
+    // Berbagi metrik lintas sekolah adalah keputusan tata kelola data sehingga
+    // hanya kepala sekolah/admin yang boleh mengubahnya.
+    if (dto.analyticsOptIn !== undefined) {
+      await this.access.assertRole(userId, schoolId, ['head_of_administration']);
+    }
     const school = await this.prisma.school.update({
       where: { id: schoolId },
       data: { ...dto },
@@ -164,6 +169,10 @@ export class SchoolsService {
       action: 'update',
       entityType: 'School',
       entityId: schoolId,
+      metadata:
+        dto.analyticsOptIn !== undefined
+          ? { analyticsOptIn: dto.analyticsOptIn }
+          : undefined,
     });
     return school;
   }

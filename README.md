@@ -118,6 +118,7 @@ POST /uploads/{id}/complete           # hitung sha256, deteksi duplikat, simpan 
 | **E-Ijazah** | batch per tahun ajaran, generate sertifikat untuk siswa terdaftar, terbitkan + tanda tangan elektronik (HMAC-SHA256), cabut ijazah, unduh PDF ber-QR, verifikasi publik via nomor seri |
 | **Versioning** | riwayat versi + catatan perubahan, detail versi, unduh versi lama, bandingkan dua versi, pulihkan versi lama menjadi versi baru |
 | **Arsip Keuangan/BOS** | pencatatan arsip keuangan (RKAS, SPJ, kuitansi, laporan BOS, dll.) bertaut dokumen + nominal, ringkasan per tahun ajaran, ekspor paket audit (ZIP + manifest) |
+| **Analitik Lintas Sekolah** | metrik per sekolah (skor kepatuhan, storage, dokumen mendekati retensi, tren unggahan, dokumen per jenis) + agregasi anonim lintas tenant untuk yayasan/dinas (opt-in) |
 
 Alur E-Raport: **tahun ajaran → semester + kelas → data siswa → mata pelajaran →
 penugasan siswa ke kelas → entri nilai → generate raport (PDF)**.
@@ -173,6 +174,20 @@ nominal + tahun ajaran) → ringkasan per TA → ekspor paket audit (ZIP)**.
   menghasilkan berkas ZIP berisi `manifest.json`, `README.txt`, dan salinan berkas
   dokumen tertaut; tindakan ini tercatat pada jejak audit.
 
+Alur Analitik Lintas Sekolah: **metrik per sekolah → opt-in berbagi → dasbor
+anonim yayasan/dinas**.
+
+- `GET /analytics/school?schoolId=` (anggota pengelola/auditor) mengembalikan skor
+  kepatuhan (beserta riwayat snapshot), pemakaian storage, jumlah dokumen &
+  dokumen mendekati retensi (≤ 90 hari), tren unggahan 6 bulan, dan dokumen per jenis.
+- `GET /analytics/network` mengembalikan agregat **anonim** lintas tenant (jumlah
+  sekolah opt-in, storage, dokumen, sebaran paket & kepatuhan, tren unggahan) tanpa
+  identitas sekolah mana pun. Hanya kepala sekolah/auditor aktif yang boleh mengakses.
+- Keikutsertaan bersifat *opt-in* per sekolah (`analyticsOptIn`), diubah lewat
+  `PATCH /schools/{id}` (kepala sekolah / kepala TU) dan tercatat pada jejak audit.
+- Skor kepatuhan agregat dihitung dari `compliance_snapshots` (materialized view);
+  tabel `network_metrics` disediakan untuk cache agregat di iterasi berikutnya.
+
 ## Aplikasi Web (MVP)
 
 Frontend Next.js (App Router) sederhana untuk alur inti:
@@ -186,17 +201,20 @@ Frontend Next.js (App Router) sederhana untuk alur inti:
 | `/schools/[schoolId]/students` | **E-Raport**: data siswa (+ impor CSV), mata pelajaran, penugasan kelas, entri nilai, generate & unduh raport PDF |
 | `/schools/[schoolId]/eijazah` | **E-Ijazah**: batch per tahun ajaran, generate sertifikat, terbitkan/cabut, unduh PDF, verifikasi nomor seri |
 | `/schools/[schoolId]/keuangan` | **Arsip Keuangan/BOS**: catat arsip keuangan bertaut dokumen, ringkasan per tahun ajaran, ekspor paket audit (ZIP) |
+| `/schools/[schoolId]/analitik` | **Analitik Sekolah**: skor kepatuhan + riwayat, storage, dokumen mendekati retensi, tren unggahan, dokumen per jenis, dan opt-in berbagi metrik |
+| `/analytics` | **Analitik Lintas Sekolah** (yayasan/dinas): agregat anonim sekolah opt-in |
 | `/verify/[serial]` | **Verifikasi publik ijazah** (tanpa login): valid/tidak + metadata |
 
 - Autentikasi memakai cookie `httpOnly` (`arsip_token`) yang di-set API saat login/register;
   tidak ada token di JavaScript (aman dari XSS). Klien API lain tetap dapat memakai Bearer token.
-- Rute privat (`/dashboard`, `/schools/*`) dilindungi `middleware.ts` Next.js: tanpa sesi dialihkan ke `/login`.
+- Rute privat (`/dashboard`, `/schools/*`, `/analytics`) dilindungi `middleware.ts` Next.js: tanpa sesi dialihkan ke `/login`.
 - Base URL API dibaca dari `NEXT_PUBLIC_API_URL` (default `http://localhost:3001/api/v1`).
 - Alur web (arsip): **tahun ajaran → (aktifkan) → semester + kelas → generate struktur folder → unggah → legal hold → jejak audit**.
 - Alur web (E-Raport): **data siswa → mata pelajaran → penugasan kelas → entri nilai → generate raport PDF**.
 - Alur web (versioning): **unggah dokumen + catatan perubahan → panel Versioning (pilih dokumen) → unduh/bandingkan versi → pulihkan versi menjadi versi baru**.
 - Alur web (E-Ijazah): **pilih tahun ajaran → buat/pilih batch → generate ijazah → terbitkan → verifikasi nomor seri** (halaman publik `/verify/:serial`).
 - Alur web (Keuangan/BOS): **unggah dokumen keuangan → catat arsip (kategori + nominal + dokumen) → ringkasan per tahun ajaran → ekspor paket audit (ZIP)**.
+- Alur web (Analitik): **halaman Analitik sekolah (skor/storage/retensi/tren) → ikut berbagi metrik (opt-in) → dasbor `/analytics` lintas sekolah (agregat anonim)**.
 
 ## Perintah Penting
 
@@ -220,12 +238,16 @@ Test E2E berada di `apps/e2e` (workspace `@arsip/e2e`) dan mencakup:
 
 - **API end-to-end** (`tests/api/`) — alur penuh lewat HTTP: auth, sekolah, akademik &
   struktur folder, dokumen & upload (dedup/policy/download), RBAC, retensi/legal hold,
-  skor kepatuhan, serta **E-Raport** (siswa/impor CSV/mapel/nilai/generate PDF) dan
-  **E-Ijazah** (batch/generate/terbitkan/cabut/verifikasi/PDF).
+  skor kepatuhan, serta **E-Raport** (siswa/impor CSV/mapel/nilai/generate PDF),
+  **E-Ijazah** (batch/generate/terbitkan/cabut/verifikasi/PDF),
+  **Arsip Keuangan/BOS** (arsip/ringkasan/ekspor ZIP), dan **Analitik Lintas Sekolah**
+  (metrik sekolah, opt-in, agregat anonim jaringan).
 - **Alur web (browser)** (`tests/web/`) — daftar → buat sekolah → unggah dokumen →
   lihat dokumen & skor kepatuhan, generate struktur folder, alur **E-Raport**
   (siswa → mapel → nilai → raport PDF), alur **E-Ijazah** (batch → terbitkan →
-  verifikasi), proteksi rute, plus smoke halaman.
+  verifikasi), alur **Arsip Keuangan/BOS** (catat → ringkasan → ekspor ZIP),
+  alur **Analitik** (metrik sekolah → opt-in → dasbor jaringan), proteksi rute,
+  plus smoke halaman.
 
 Playwright otomatis menjalankan API (`npm run start --workspace @arsip/api`) dan web
 (`npm run dev --workspace @arsip/web`) lewat `webServer`. Bila server sudah berjalan di

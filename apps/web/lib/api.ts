@@ -132,6 +132,7 @@ export interface School {
   planCode: string;
   city?: string | null;
   province?: string | null;
+  analyticsOptIn?: boolean;
 }
 
 export interface DocumentType {
@@ -467,6 +468,85 @@ export interface FinanceSummary {
   }>;
 }
 
+// ---------- Analitik ----------
+
+export interface AnalyticsTrendPoint {
+  month: string;
+  count: number;
+}
+
+export interface SchoolAnalytics {
+  generatedAt: string;
+  school: {
+    id: string;
+    name: string;
+    planCode: string;
+    status: string;
+    analyticsOptIn: boolean;
+    createdAt: string;
+  };
+  compliance: {
+    score: number;
+    status: string;
+    checks: Array<{ code: string; label: string; score: number; pass: boolean }>;
+    trend: Array<{ score: number; computedAt: string }>;
+  };
+  storage: {
+    usedBytes: string;
+    quotaBytes: string;
+    remainingBytes: string;
+    usagePercent: number;
+    maxFileSizeBytes: string;
+  };
+  documents: {
+    total: number;
+    active: number;
+    archived: number;
+    pendingDeletion: number;
+    legalHold: number;
+    expiredRetention: number;
+    nearingRetention: number;
+  };
+  folders: number;
+  memberships: { total: number; active: number };
+  students: { active: number; graduated: number };
+  uploads: {
+    totalVersions: number;
+    totalSizeBytes: string;
+    trend: AnalyticsTrendPoint[];
+  };
+  documentTypes: Array<{
+    id: string | null;
+    name: string;
+    code: string | null;
+    count: number;
+  }>;
+}
+
+export interface NetworkAnalytics {
+  generatedAt: string;
+  scope: 'network';
+  schools: {
+    optedIn: number;
+    byPlan: Array<{ plan: string; planName: string; count: number }>;
+  };
+  storage: {
+    usedBytes: string;
+    quotaBytes: string;
+    remainingBytes: string;
+    usagePercent: number;
+  };
+  documents: { total: number; legalHold: number };
+  memberships: { active: number };
+  students: { active: number };
+  compliance: {
+    schoolsWithScore: number;
+    averageScore: number | null;
+    distribution: Array<{ status: string; count: number }>;
+  };
+  uploads: { trend: AnalyticsTrendPoint[] };
+}
+
 // ---------- Endpoint ----------
 
 export const api = {
@@ -490,6 +570,12 @@ export const api = {
   },
   getSchool(id: string) {
     return request<School>(`/schools/${id}`);
+  },
+  updateSchool(
+    id: string,
+    data: { name?: string; analyticsOptIn?: boolean },
+  ) {
+    return request<School>(`/schools/${id}`, { method: 'PATCH', body: data });
   },
 
   // Akademik
@@ -843,5 +929,17 @@ export const api = {
       ? `?academicYearId=${encodeURIComponent(academicYearId)}`
       : '';
     return requestBlob(`/schools/${schoolId}/finance/export${suffix}`);
+  },
+
+  // Analitik
+  /** Metrik satu sekolah (kepatuhan, storage, retensi, tren unggahan). */
+  schoolAnalytics(schoolId: string) {
+    return request<SchoolAnalytics>(
+      `/analytics/school?schoolId=${encodeURIComponent(schoolId)}`,
+    );
+  },
+  /** Agregat anonim lintas sekolah untuk yayasan/dinas. */
+  networkAnalytics() {
+    return request<NetworkAnalytics>('/analytics/network');
   },
 };

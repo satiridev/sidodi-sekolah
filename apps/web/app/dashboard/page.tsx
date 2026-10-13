@@ -15,6 +15,10 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
 
+  const canSeeNetwork = memberships.some((m) =>
+    ['headmaster', 'auditor'].includes(m.role),
+  );
+
   useEffect(() => {
     if (ready && !user) router.replace('/login');
   }, [ready, user, router]);
@@ -50,6 +54,15 @@ export default function DashboardPage() {
           Arsip Digital Sekolah
         </Link>
         <div className="nav">
+          {canSeeNetwork && (
+            <Link
+              className="btn btn-ghost"
+              href="/analytics"
+              data-testid="nav-network"
+            >
+              Analitik Jaringan
+            </Link>
+          )}
           <span className="whoami" data-testid="user-name">
             {user?.name}
           </span>

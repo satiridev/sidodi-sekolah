@@ -266,6 +266,13 @@ export default function SchoolPage() {
           >
             Keuangan/BOS
           </Link>
+          <Link
+            className="btn btn-ghost"
+            href={`/schools/${schoolId}/analitik`}
+            data-testid="nav-analitik"
+          >
+            Analitik
+          </Link>
           <span className="whoami">{user?.name}</span>
           <button
             className="btn btn-ghost"

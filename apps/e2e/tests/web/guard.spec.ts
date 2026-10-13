@@ -20,4 +20,10 @@ test.describe('Proteksi rute (middleware)', () => {
     await expect(page).toHaveURL(/\/login/);
     await expect(page.getByTestId('auth-submit')).toBeVisible();
   });
+
+  test('tanpa sesi, /analytics dialihkan ke /login', async ({ page }) => {
+    await page.goto('/analytics');
+    await expect(page).toHaveURL(/\/login/);
+    await expect(page.getByTestId('auth-submit')).toBeVisible();
+  });
 });

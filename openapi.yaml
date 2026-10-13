@@ -2028,13 +2028,23 @@ paths:
       parameters:
         - { name: schoolId, in: query, required: true, schema: { type: string, format: uuid } }
       responses:
-        '200': { description: OK }
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SchoolAnalytics' }
+        '403': { $ref: '#/components/responses/Forbidden' }
   /analytics/network:
     get:
       tags: [Analytics]
       summary: Metrik lintas sekolah (yayasan/dinas)
       responses:
-        '200': { description: OK }
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NetworkAnalytics' }
+        '403': { $ref: '#/components/responses/Forbidden' }
 
   # ===================== Integrations =====================
   /schools/{schoolId}/api-keys:
@@ -2306,6 +2316,7 @@ components:
         storageUsedBytes: { type: integer, format: int64 }
         maxFileSizeBytes: { type: integer, format: int64 }
         status: { type: string, enum: [active, suspended] }
+        analyticsOptIn: { type: boolean }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
     SchoolUpdate:
@@ -2319,6 +2330,150 @@ components:
         phone: { type: string }
         email: { type: string }
         logoUrl: { type: string }
+        analyticsOptIn: { type: boolean }
+
+    AnalyticsTrendPoint:
+      type: object
+      properties:
+        month: { type: string, example: '2026-10' }
+        count: { type: integer }
+
+    SchoolAnalytics:
+      type: object
+      properties:
+        generatedAt: { type: string, format: date-time }
+        school:
+          type: object
+          properties:
+            id: { type: string, format: uuid }
+            name: { type: string }
+            planCode: { $ref: '#/components/schemas/PlanCode' }
+            status: { type: string, enum: [active, suspended] }
+            analyticsOptIn: { type: boolean }
+            createdAt: { type: string, format: date-time }
+        compliance:
+          type: object
+          properties:
+            score: { type: number }
+            status: { type: string }
+            checks:
+              type: array
+              items:
+                type: object
+                properties:
+                  code: { type: string }
+                  label: { type: string }
+                  score: { type: number }
+                  pass: { type: boolean }
+            trend:
+              type: array
+              items:
+                type: object
+                properties:
+                  score: { type: number }
+                  computedAt: { type: string, format: date-time }
+        storage:
+          type: object
+          properties:
+            usedBytes: { type: string }
+            quotaBytes: { type: string }
+            remainingBytes: { type: string }
+            usagePercent: { type: number }
+            maxFileSizeBytes: { type: string }
+        documents:
+          type: object
+          properties:
+            total: { type: integer }
+            active: { type: integer }
+            archived: { type: integer }
+            pendingDeletion: { type: integer }
+            legalHold: { type: integer }
+            expiredRetention: { type: integer }
+            nearingRetention: { type: integer }
+        folders: { type: integer }
+        memberships:
+          type: object
+          properties:
+            total: { type: integer }
+            active: { type: integer }
+        students:
+          type: object
+          properties:
+            active: { type: integer }
+            graduated: { type: integer }
+        uploads:
+          type: object
+          properties:
+            totalVersions: { type: integer }
+            totalSizeBytes: { type: string }
+            trend:
+              type: array
+              items: { $ref: '#/components/schemas/AnalyticsTrendPoint' }
+        documentTypes:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string, format: uuid, nullable: true }
+              name: { type: string }
+              code: { type: string, nullable: true }
+              count: { type: integer }
+
+    NetworkAnalytics:
+      type: object
+      properties:
+        generatedAt: { type: string, format: date-time }
+        scope: { type: string, enum: [network] }
+        schools:
+          type: object
+          properties:
+            optedIn: { type: integer }
+            byPlan:
+              type: array
+              items:
+                type: object
+                properties:
+                  plan: { $ref: '#/components/schemas/PlanCode' }
+                  planName: { type: string }
+                  count: { type: integer }
+        storage:
+          type: object
+          properties:
+            usedBytes: { type: string }
+            quotaBytes: { type: string }
+            remainingBytes: { type: string }
+            usagePercent: { type: number }
+        documents:
+          type: object
+          properties:
+            total: { type: integer }
+            legalHold: { type: integer }
+        memberships:
+          type: object
+          properties:
+            active: { type: integer }
+        students:
+          type: object
+          properties:
+            active: { type: integer }
+        compliance:
+          type: object
+          properties:
+            schoolsWithScore: { type: integer }
+            averageScore: { type: number, nullable: true }
+            distribution:
+              type: array
+              items:
+                type: object
+                properties:
+                  status: { type: string, enum: [baik, cukup, perlu_perbaikan] }
+                  count: { type: integer }
+        uploads:
+          type: object
+          properties:
+            trend:
+              type: array
+              items: { $ref: '#/components/schemas/AnalyticsTrendPoint' }
 
     Subscription:
       type: object

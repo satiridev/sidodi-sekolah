@@ -240,6 +240,7 @@ model School {
   storageUsedBytes  BigInt       @default(0) @map("storage_used_bytes")
   maxFileSizeBytes  BigInt       @default(104857600) @map("max_file_size_bytes")
   status            SchoolStatus @default(active)
+  analyticsOptIn    Boolean      @default(false) @map("analytics_opt_in")
   createdAt         DateTime     @default(now()) @map("created_at") @db.Timestamptz
   updatedAt         DateTime     @updatedAt @map("updated_at") @db.Timestamptz
   deletedAt         DateTime?    @map("deleted_at") @db.Timestamptz

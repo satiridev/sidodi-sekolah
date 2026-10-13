@@ -1,4 +1,4 @@
-import { IsEmail, IsNumber, IsOptional, IsString, Matches, Min, Max, MaxLength, MinLength } from 'class-validator';
+import { IsBoolean, IsEmail, IsNumber, IsOptional, IsString, Matches, Min, Max, MaxLength, MinLength } from 'class-validator';
 
 export class CreateSchoolDto {
   @IsString()
@@ -68,6 +68,14 @@ export class UpdateSchoolDto {
   @IsOptional()
   @IsEmail()
   email?: string;
+
+  /**
+   * Persetujuan (opt-in) berbagi metrik anonim untuk dashboard lintas sekolah
+   * (yayasan/dinas). Hanya kepala sekolah/admin yang boleh mengubahnya.
+   */
+  @IsOptional()
+  @IsBoolean()
+  analyticsOptIn?: boolean;
 }
 
 export class UpdateSchoolSettingsDto {
