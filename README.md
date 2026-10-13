@@ -106,6 +106,24 @@ POST /uploads/{id}/complete           # hitung sha256, deteksi duplikat, simpan 
 - Versi baru pada dokumen yang sama menambah `versionNumber`.
 - Kuota penyimpanan sekolah bertambah saat file benar-benar tersimpan.
 
+## Modul API (Tahap 2)
+
+| Modul | Ringkasan |
+|---|---|
+| **E-Raport** | data induk siswa (CRUD, soft delete, impor CSV), mata pelajaran, penugasan siswa ke kelas, entri nilai per mapel/term, generate raport PDF per kelas, unduh PDF |
+
+Alur E-Raport: **tahun ajaran → semester + kelas → data siswa → mata pelajaran →
+penugasan siswa ke kelas → entri nilai → generate raport (PDF)**.
+
+- Nilai unik per (siswa, kelas, mata pelajaran, term); input ulang bersifat *upsert*
+  (`POST /classrooms/{id}/grades` untuk satu nilai, `/grades/bulk` untuk massal).
+- Raport bersifat *idempoten*: generate ulang menimpa berkas dan memperbarui baris
+  `report_cards` yang sudah ada (tidak menambah duplikat).
+- PDF dibuat dengan `pdfkit` lalu disimpan lewat `StorageService` (S3-compatible /
+  disk lokal), dan diunduh via `GET /report-cards/{id}/pdf`.
+- Soft delete siswa: `DELETE /students/{id}` menandai status `inactive` (nilai &
+  raport tetap utuh sebagai arsip akademik permanen).
+
 ## Aplikasi Web (MVP)
 
 Frontend Next.js (App Router) sederhana untuk alur inti:
@@ -116,12 +134,14 @@ Frontend Next.js (App Router) sederhana untuk alur inti:
 | `/login` | Masuk / daftar akun |
 | `/dashboard` | Daftar sekolah milik pengguna + form buat sekolah |
 | `/schools/[schoolId]` | Skor kepatuhan, penyimpanan, **tahun ajaran/semester/kelas**, struktur folder (generate), unggah dokumen, daftar dokumen + **legal hold**, **jejak audit**, aturan retensi |
+| `/schools/[schoolId]/students` | **E-Raport**: data siswa (+ impor CSV), mata pelajaran, penugasan kelas, entri nilai, generate & unduh raport PDF |
 
 - Autentikasi memakai cookie `httpOnly` (`arsip_token`) yang di-set API saat login/register;
   tidak ada token di JavaScript (aman dari XSS). Klien API lain tetap dapat memakai Bearer token.
 - Rute privat (`/dashboard`, `/schools/*`) dilindungi `middleware.ts` Next.js: tanpa sesi dialihkan ke `/login`.
 - Base URL API dibaca dari `NEXT_PUBLIC_API_URL` (default `http://localhost:3001/api/v1`).
-- Alur web: **tahun ajaran → (aktifkan) → semester + kelas → generate struktur folder → unggah → legal hold → jejak audit**.
+- Alur web (arsip): **tahun ajaran → (aktifkan) → semester + kelas → generate struktur folder → unggah → legal hold → jejak audit**.
+- Alur web (E-Raport): **data siswa → mata pelajaran → penugasan kelas → entri nilai → generate raport PDF**.
 
 ## Perintah Penting
 
@@ -145,9 +165,10 @@ Test E2E berada di `apps/e2e` (workspace `@arsip/e2e`) dan mencakup:
 
 - **API end-to-end** (`tests/api/`) — alur penuh lewat HTTP: auth, sekolah, akademik &
   struktur folder, dokumen & upload (dedup/policy/download), RBAC, retensi/legal hold,
-  dan skor kepatuhan.
+  skor kepatuhan, serta **E-Raport** (siswa/impor CSV/mapel/nilai/generate PDF).
 - **Alur web (browser)** (`tests/web/`) — daftar → buat sekolah → unggah dokumen →
-  lihat dokumen & skor kepatuhan, generate struktur folder, plus smoke halaman.
+  lihat dokumen & skor kepatuhan, generate struktur folder, alur **E-Raport**
+  (siswa → mapel → nilai → raport PDF), proteksi rute, plus smoke halaman.
 
 Playwright otomatis menjalankan API (`npm run start --workspace @arsip/api`) dan web
 (`npm run dev --workspace @arsip/web`) lewat `webServer`. Bila server sudah berjalan di

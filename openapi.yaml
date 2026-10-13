@@ -1744,6 +1744,9 @@ paths:
     get:
       tags: [E-Raport]
       summary: Daftar nilai kelas
+      parameters:
+        - { name: subjectId, in: query, schema: { type: string, format: uuid } }
+        - { name: term, in: query, schema: { $ref: '#/components/schemas/AcademicTerm' } }
       responses:
         '200':
           description: OK
@@ -1754,18 +1757,94 @@ paths:
                 items: { $ref: '#/components/schemas/Grade' }
     post:
       tags: [E-Raport]
-      summary: Input nilai
+      summary: Input nilai (upsert per siswa+mapel+term)
       requestBody:
         required: true
         content:
           application/json:
-            schema: { $ref: '#/components/schemas/Grade' }
+            schema: { $ref: '#/components/schemas/GradeInput' }
       responses:
         '201':
           description: Created
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Grade' }
+  /classrooms/{id}/grades/bulk:
+    parameters: [{ $ref: '#/components/parameters/IdPath' }]
+    post:
+      tags: [E-Raport]
+      summary: Input banyak nilai sekaligus
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [grades]
+              properties:
+                grades:
+                  type: array
+                  items: { $ref: '#/components/schemas/GradeInput' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  saved: { type: integer }
+  /classrooms/{id}/students:
+    parameters: [{ $ref: '#/components/parameters/IdPath' }]
+    get:
+      tags: [E-Raport]
+      summary: Daftar siswa di kelas
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/StudentClassroom' }
+    post:
+      tags: [E-Raport]
+      summary: Tugaskan siswa ke kelas
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [studentIds]
+              properties:
+                studentIds:
+                  type: array
+                  items: { type: string, format: uuid }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  assigned: { type: integer }
+  /classrooms/{id}/report-cards:
+    parameters: [{ $ref: '#/components/parameters/IdPath' }]
+    get:
+      tags: [E-Raport]
+      summary: Daftar raport kelas
+      parameters:
+        - { name: semesterId, in: query, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ReportCard' }
   /classrooms/{id}/report-cards/generate:
     parameters: [{ $ref: '#/components/parameters/IdPath' }]
     post:
@@ -1780,8 +1859,21 @@ paths:
               required: [semesterId]
               properties:
                 semesterId: { type: string, format: uuid }
+                studentIds:
+                  type: array
+                  items: { type: string, format: uuid }
       responses:
-        '202': { description: Queued }
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  generated: { type: integer }
+                  reportCards:
+                    type: array
+                    items: { $ref: '#/components/schemas/ReportCard' }
   /report-cards/{id}/pdf:
     parameters: [{ $ref: '#/components/parameters/IdPath' }]
     get:
@@ -2499,6 +2591,23 @@ components:
         term: { $ref: '#/components/schemas/AcademicTerm' }
         score: { type: number }
         note: { type: string, nullable: true }
+    GradeInput:
+      type: object
+      required: [studentId, subjectId, term, score]
+      properties:
+        studentId: { type: string, format: uuid }
+        subjectId: { type: string, format: uuid }
+        term: { $ref: '#/components/schemas/AcademicTerm' }
+        score: { type: number, minimum: 0, maximum: 100 }
+        note: { type: string, nullable: true }
+    StudentClassroom:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        studentId: { type: string, format: uuid }
+        classroomId: { type: string, format: uuid }
+        academicYearId: { type: string, format: uuid }
+        student: { $ref: '#/components/schemas/Student' }
     ReportCard:
       type: object
       properties:

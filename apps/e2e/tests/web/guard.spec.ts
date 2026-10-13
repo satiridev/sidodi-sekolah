@@ -12,4 +12,12 @@ test.describe('Proteksi rute (middleware)', () => {
     await expect(page).toHaveURL(/\/login/);
     await expect(page.getByTestId('auth-submit')).toBeVisible();
   });
+
+  test('tanpa sesi, /schools/:id/students dialihkan ke /login', async ({
+    page,
+  }) => {
+    await page.goto('/schools/00000000-0000-0000-0000-000000000000/students');
+    await expect(page).toHaveURL(/\/login/);
+    await expect(page.getByTestId('auth-submit')).toBeVisible();
+  });
 });

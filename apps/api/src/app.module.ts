@@ -15,6 +15,8 @@ import { DocumentsModule } from './documents/documents.module';
 import { UploadsModule } from './uploads/uploads.module';
 import { RetentionModule } from './retention/retention.module';
 import { ComplianceModule } from './compliance/compliance.module';
+import { StudentsModule } from './students/students.module';
+import { ReportsModule } from './reports/reports.module';
 
 @Module({
   imports: [
@@ -36,6 +38,8 @@ import { ComplianceModule } from './compliance/compliance.module';
     UploadsModule,
     RetentionModule,
     ComplianceModule,
+    StudentsModule,
+    ReportsModule,
   ],
 })
 export class AppModule {}

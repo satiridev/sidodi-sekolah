@@ -239,6 +239,13 @@ export default function SchoolPage() {
           ← {school?.name ?? 'Sekolah'}
         </Link>
         <div className="nav">
+          <Link
+            className="btn btn-ghost"
+            href={`/schools/${schoolId}/students`}
+            data-testid="nav-eraport"
+          >
+            E-Raport
+          </Link>
           <span className="whoami">{user?.name}</span>
           <button
             className="btn btn-ghost"

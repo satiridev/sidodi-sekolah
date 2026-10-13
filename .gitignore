@@ -6,6 +6,7 @@ dist
 .next
 out
 .turbo
+*.tsbuildinfo
 
 # Env
 .env

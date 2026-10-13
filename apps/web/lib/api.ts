@@ -239,6 +239,88 @@ export interface UploadResult {
   contentHash?: string;
 }
 
+// ---------- E-Raport: siswa, mapel, nilai, raport ----------
+
+export type AcademicTermValue = 'odd' | 'even';
+
+export interface Student {
+  id: string;
+  schoolId: string;
+  nisn: string | null;
+  nis: string | null;
+  fullName: string;
+  gender: string | null;
+  birthDate: string | null;
+  status: string;
+  classrooms?: Array<{
+    id: string;
+    classroom: { id: string; name: string };
+  }>;
+}
+
+export interface Subject {
+  id: string;
+  schoolId: string;
+  name: string;
+  code: string;
+}
+
+export interface ClassroomStudentLink {
+  id: string;
+  studentId: string;
+  classroomId: string;
+  academicYearId: string;
+  student: {
+    id: string;
+    fullName: string;
+    nisn: string | null;
+    nis: string | null;
+    gender: string | null;
+    status: string;
+  };
+}
+
+export interface Grade {
+  id: string;
+  studentId: string;
+  classroomId: string;
+  subjectId: string;
+  term: AcademicTermValue;
+  score: string;
+  note: string | null;
+  student?: { id: string; fullName: string; nisn: string | null };
+  subject?: { id: string; name: string; code: string };
+}
+
+export interface GradeInput {
+  studentId: string;
+  subjectId: string;
+  term: AcademicTermValue;
+  score: number;
+  note?: string;
+}
+
+export interface ImportResult {
+  created: number;
+  skipped: number;
+  total: number;
+  errors: Array<{ row: number; message: string }>;
+}
+
+export interface ReportCardItem {
+  id: string;
+  studentId: string;
+  classroomId: string;
+  academicYearId: string;
+  semesterId: string;
+  status: string;
+  storageKey: string | null;
+  generatedAt: string | null;
+  student?: { id: string; fullName: string; nisn: string | null };
+  semester?: { id: string; name: string; term: AcademicTermValue };
+  academicYear?: { id: string; name: string };
+}
+
 // ---------- Endpoint ----------
 
 export const api = {
@@ -383,5 +465,118 @@ export const api = {
     return request<UploadResult>(`/uploads/${session.id}/complete`, {
       method: 'POST',
     });
+  },
+
+  // E-Raport: siswa
+  students(
+    schoolId: string,
+    params: { q?: string; classroomId?: string; academicYearId?: string } = {},
+  ) {
+    const qs = new URLSearchParams();
+    if (params.q) qs.set('q', params.q);
+    if (params.classroomId) qs.set('classroomId', params.classroomId);
+    if (params.academicYearId) qs.set('academicYearId', params.academicYearId);
+    const suffix = qs.toString() ? `?${qs.toString()}` : '';
+    return request<Student[]>(`/schools/${schoolId}/students${suffix}`);
+  },
+  createStudent(
+    schoolId: string,
+    data: {
+      fullName: string;
+      nisn?: string;
+      nis?: string;
+      gender?: string;
+      birthDate?: string;
+    },
+  ) {
+    return request<Student>(`/schools/${schoolId}/students`, {
+      method: 'POST',
+      body: data,
+    });
+  },
+  updateStudent(
+    id: string,
+    data: Partial<{
+      fullName: string;
+      nisn: string;
+      nis: string;
+      gender: string;
+      birthDate: string;
+      status: string;
+    }>,
+  ) {
+    return request<Student>(`/students/${id}`, { method: 'PATCH', body: data });
+  },
+  deleteStudent(id: string) {
+    return request<null>(`/students/${id}`, { method: 'DELETE' });
+  },
+  importStudents(schoolId: string, file: File) {
+    const formData = new FormData();
+    formData.append('file', file);
+    return request<ImportResult>(`/schools/${schoolId}/students/import`, {
+      method: 'POST',
+      formData,
+    });
+  },
+
+  // E-Raport: mata pelajaran
+  subjects(schoolId: string) {
+    return request<Subject[]>(`/schools/${schoolId}/subjects`);
+  },
+  createSubject(schoolId: string, data: { name: string; code: string }) {
+    return request<Subject>(`/schools/${schoolId}/subjects`, {
+      method: 'POST',
+      body: data,
+    });
+  },
+
+  // E-Raport: penugasan kelas
+  classroomStudents(classroomId: string) {
+    return request<ClassroomStudentLink[]>(
+      `/classrooms/${classroomId}/students`,
+    );
+  },
+  assignStudents(classroomId: string, studentIds: string[]) {
+    return request<{ assigned: number }>(`/classrooms/${classroomId}/students`, {
+      method: 'POST',
+      body: { studentIds },
+    });
+  },
+
+  // E-Raport: nilai
+  grades(
+    classroomId: string,
+    params: { subjectId?: string; term?: AcademicTermValue } = {},
+  ) {
+    const qs = new URLSearchParams();
+    if (params.subjectId) qs.set('subjectId', params.subjectId);
+    if (params.term) qs.set('term', params.term);
+    const suffix = qs.toString() ? `?${qs.toString()}` : '';
+    return request<Grade[]>(`/classrooms/${classroomId}/grades${suffix}`);
+  },
+  saveGrades(classroomId: string, grades: GradeInput[]) {
+    return request<{ saved: number }>(`/classrooms/${classroomId}/grades/bulk`, {
+      method: 'POST',
+      body: { grades },
+    });
+  },
+
+  // E-Raport: raport
+  reportCards(classroomId: string, semesterId?: string) {
+    const suffix = semesterId
+      ? `?semesterId=${encodeURIComponent(semesterId)}`
+      : '';
+    return request<ReportCardItem[]>(
+      `/classrooms/${classroomId}/report-cards${suffix}`,
+    );
+  },
+  generateReportCards(classroomId: string, semesterId: string) {
+    return request<{ generated: number; reportCards: ReportCardItem[] }>(
+      `/classrooms/${classroomId}/report-cards/generate`,
+      { method: 'POST', body: { semesterId } },
+    );
+  },
+  reportCardPdfUrl(reportCardId: string) {
+    return `${API_URL}/report-cards/${reportCardId}/pdf`;
   },
 };
