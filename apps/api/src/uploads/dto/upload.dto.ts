@@ -31,6 +31,12 @@ export class InitiateUploadDto {
   @MaxLength(255)
   title?: string;
 
+  /** Catatan perubahan untuk versi baru (opsional). */
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  changeNote?: string;
+
   @IsString()
   @MinLength(1)
   @MaxLength(255)

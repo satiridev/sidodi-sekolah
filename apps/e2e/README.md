@@ -5,7 +5,7 @@ Suite **Playwright** untuk menguji sistem secara end-to-end. Dua project:
 | Project | Lokasi | Cakupan |
 |---|---|---|
 | `api` | `tests/api/` | End-to-end lewat HTTP API (`APIRequestContext`) |
-| `web` | `tests/web/` | Alur browser (Chromium): daftar → buat sekolah → tahun ajaran/semester/kelas → generate folder → unggah → legal hold; alur **E-Raport** (siswa → mapel → nilai → raport PDF); proteksi rute; smoke halaman |
+| `web` | `tests/web/` | Alur browser (Chromium): daftar → buat sekolah → tahun ajaran/semester/kelas → generate folder → unggah → legal hold → versioning; alur **E-Raport** (siswa → mapel → nilai → raport PDF); proteksi rute; smoke halaman |
 
 ## Prasyarat
 
@@ -74,12 +74,14 @@ tests/
 │   ├── 05-documents-uploads.spec.ts
 │   ├── 06-rbac.spec.ts
 │   ├── 07-retention-compliance.spec.ts
-│   └── 08-eraport.spec.ts             # E-Raport: siswa, mapel, nilai, raport PDF
+│   ├── 08-eraport.spec.ts             # E-Raport: siswa, mapel, nilai, raport PDF
+│   └── 09-versioning.spec.ts          # Versioning: riwayat, unduh, bandingkan, restore
 └── web/
     ├── home.spec.ts                 # smoke halaman landing
     ├── guard.spec.ts                # proteksi rute (middleware redirect ke /login)
     ├── flow.spec.ts                 # daftar -> sekolah -> akademik -> folder -> unggah -> legal hold
-    └── eraport.spec.ts              # alur E-Raport di browser (siswa -> nilai -> raport PDF)
+    ├── eraport.spec.ts              # alur E-Raport di browser (siswa -> nilai -> raport PDF)
+    └── versioning.spec.ts           # alur versioning di browser (catatan -> pulihkan -> bandingkan)
 ```
 
 ### Catatan fixture API

@@ -150,3 +150,19 @@ export class SchedulePurgeDto {
   @IsString()
   reason?: string;
 }
+
+export class RestoreVersionDto {
+  /** Catatan perubahan opsional untuk versi hasil pemulihan. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  changeNote?: string;
+}
+
+export class CompareVersionsDto {
+  @IsUUID()
+  from!: string;
+
+  @IsUUID()
+  to!: string;
+}

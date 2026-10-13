@@ -235,8 +235,38 @@ export interface AuditLogPage {
 export interface UploadResult {
   deduplicated: boolean;
   documentId: string;
+  versionId?: string;
   versionNumber?: number;
   contentHash?: string;
+  existingVersionId?: string;
+}
+
+// ---------- Versioning dokumen ----------
+
+export interface DocumentVersionItem {
+  id: string;
+  documentId: string;
+  versionNumber: number;
+  storageKey: string;
+  fileName: string;
+  mimeType: string;
+  extension: string;
+  sizeBytes: string;
+  contentHash: string;
+  scanStatus: string;
+  ocrStatus: string;
+  changeNote: string | null;
+  uploadedByMembershipId: string | null;
+  createdAt: string;
+  uploadedBy?: { id: string; name: string; email: string } | null;
+}
+
+export interface VersionCompareResult {
+  from: DocumentVersionItem;
+  to: DocumentVersionItem;
+  contentChanged: boolean;
+  sizeDeltaBytes: string;
+  metadataChanges: Array<{ field: string; from: string; to: string }>;
 }
 
 // ---------- E-Raport: siswa, mapel, nilai, raport ----------
@@ -421,6 +451,31 @@ export const api = {
     return request<StorageInfo>(`/schools/${schoolId}/storage`);
   },
 
+  // Versioning dokumen
+  versions(documentId: string) {
+    return request<DocumentVersionItem[]>(`/documents/${documentId}/versions`);
+  },
+  version(documentId: string, versionId: string) {
+    return request<DocumentVersionItem>(
+      `/documents/${documentId}/versions/${versionId}`,
+    );
+  },
+  restoreVersion(documentId: string, versionId: string, changeNote?: string) {
+    return request<DocumentVersionItem>(
+      `/documents/${documentId}/versions/${versionId}/restore`,
+      { method: 'POST', body: { changeNote } },
+    );
+  },
+  compareVersions(documentId: string, from: string, to: string) {
+    const qs = new URLSearchParams({ from, to });
+    return request<VersionCompareResult>(
+      `/documents/${documentId}/versions/compare?${qs.toString()}`,
+    );
+  },
+  versionDownloadUrl(documentId: string, versionId: string) {
+    return `${API_URL}/documents/${documentId}/versions/${versionId}/download`;
+  },
+
   // Legal hold & audit
   setLegalHold(documentId: string, isLegalHold: boolean, reason?: string) {
     return request<DocumentItem>(`/documents/${documentId}/legal-hold`, {
@@ -440,7 +495,13 @@ export const api = {
   /** Alur unggah penuh: initiate -> content (multipart) -> complete. */
   async upload(
     schoolId: string,
-    input: { file: File; documentTypeId?: string; folderId?: string; title?: string },
+    input: {
+      file: File;
+      documentTypeId?: string;
+      folderId?: string;
+      title?: string;
+      changeNote?: string;
+    },
   ): Promise<UploadResult> {
     const session = await request<{ id: string }>('/uploads/initiate', {
       method: 'POST',
@@ -449,6 +510,7 @@ export const api = {
         documentTypeId: input.documentTypeId,
         folderId: input.folderId,
         title: input.title,
+        changeNote: input.changeNote,
         fileName: input.file.name,
         mimeType: input.file.type || 'application/octet-stream',
         sizeBytes: input.file.size,

@@ -535,6 +535,7 @@ model DocumentVersion {
   contentHash            String     @map("content_hash")
   scanStatus             ScanStatus @default(pending) @map("scan_status")
   uploadedByMembershipId String?    @map("uploaded_by_membership_id") @db.Uuid
+  changeNote             String?    @map("change_note")
   ocrText                String?    @map("ocr_text")
   ocrStatus              OcrStatus  @default(pending) @map("ocr_status")
   searchVector           Unsupported("tsvector")? @map("search_vector")
@@ -563,6 +564,7 @@ model UploadSession {
   folderId     String?      @map("folder_id") @db.Uuid
   documentTypeId String?    @map("document_type_id") @db.Uuid
   title        String?
+  changeNote   String?      @map("change_note")
   createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz
   updatedAt    DateTime     @updatedAt @map("updated_at") @db.Timestamptz
 

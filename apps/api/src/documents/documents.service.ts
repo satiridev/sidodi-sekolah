@@ -15,6 +15,7 @@ import {
   CreateDocumentDto,
   ListDocumentsDto,
   PolicyValidateDto,
+  RestoreVersionDto,
   SchedulePurgeDto,
   SetLegalHoldDto,
   UpdateDocumentDto,
@@ -184,6 +185,7 @@ export class DocumentsService {
           select: {
             id: true, versionNumber: true, fileName: true, mimeType: true,
             sizeBytes: true, contentHash: true, scanStatus: true, createdAt: true,
+            changeNote: true,
             uploadedBy: { include: { user: { select: { name: true } } } },
           },
         },
@@ -336,6 +338,150 @@ export class DocumentsService {
         },
       },
     });
+  }
+
+  /** Muat satu versi milik dokumen; 404 bila tidak cocok. */
+  private async loadVersion(documentId: string, versionId: string) {
+    const version = await this.prisma.documentVersion.findFirst({
+      where: { id: versionId, documentId },
+      include: {
+        uploadedBy: {
+          include: { user: { select: { id: true, name: true, email: true } } },
+        },
+      },
+    });
+    if (!version) {
+      throw new NotFoundException('Versi dokumen tidak ditemukan');
+    }
+    return version;
+  }
+
+  private async assertCanViewDocument(id: string, userId: string) {
+    const doc = await this.loadDocument(id);
+    const membership = await this.access.membership(userId, doc.schoolId);
+    if (!this.canView(membership.role, membership.id === doc.ownerMembershipId, doc.visibility)) {
+      throw new ForbiddenException('Tidak dapat mengakses dokumen ini');
+    }
+    return { doc, membership };
+  }
+
+  async version(id: string, versionId: string, userId: string) {
+    await this.assertCanViewDocument(id, userId);
+    return this.loadVersion(id, versionId);
+  }
+
+  /** Ambil berkas versi tertentu untuk di-stream/redirect (unduh versi lama). */
+  async versionFile(id: string, versionId: string, userId: string) {
+    const { doc, membership } = await this.assertCanViewDocument(id, userId);
+    const version = await this.loadVersion(id, versionId);
+    await this.audit.log({
+      schoolId: doc.schoolId,
+      actorUserId: userId,
+      actorMembershipId: membership.id,
+      action: 'download',
+      entityType: 'DocumentVersion',
+      entityId: version.id,
+      metadata: { documentId: id, versionNumber: version.versionNumber },
+    });
+    return {
+      key: version.storageKey,
+      fileName: version.fileName,
+      mimeType: version.mimeType,
+    };
+  }
+
+  /**
+   * Pulihkan versi lama sebagai versi baru (versi lama tidak dihapus).
+   * Byte identik → storage key dipakai ulang, kuota tidak bertambah.
+   */
+  async restoreVersion(
+    id: string,
+    versionId: string,
+    userId: string,
+    dto: RestoreVersionDto,
+  ) {
+    const doc = await this.loadDocument(id);
+    const actor = await this.access.membership(userId, doc.schoolId);
+    const isOwner = actor.id === doc.ownerMembershipId;
+    const isAdmin = ['headmaster', 'head_of_administration', 'operator'].includes(actor.role);
+    if (!isOwner && !isAdmin) {
+      throw new ForbiddenException('Hanya pemilik atau admin yang dapat memulihkan versi');
+    }
+    const source = await this.loadVersion(id, versionId);
+
+    const aggregate = await this.prisma.documentVersion.aggregate({
+      where: { documentId: id },
+      _max: { versionNumber: true },
+    });
+    const versionNumber = (aggregate._max.versionNumber ?? 0) + 1;
+    const changeNote =
+      dto.changeNote?.trim() || `Dipulihkan dari versi ${source.versionNumber}`;
+
+    const created = await this.prisma.$transaction(async (tx) => {
+      const version = await tx.documentVersion.create({
+        data: {
+          documentId: id,
+          versionNumber,
+          storageKey: source.storageKey,
+          fileName: source.fileName,
+          mimeType: source.mimeType,
+          extension: source.extension,
+          sizeBytes: source.sizeBytes,
+          contentHash: source.contentHash,
+          scanStatus: source.scanStatus,
+          uploadedByMembershipId: actor.id,
+          changeNote,
+          ocrText: source.ocrText,
+          ocrStatus: source.ocrStatus,
+        },
+      });
+      await tx.document.update({
+        where: { id },
+        data: { currentVersionId: version.id },
+      });
+      return version;
+    });
+
+    await this.audit.log({
+      schoolId: doc.schoolId,
+      actorUserId: userId,
+      actorMembershipId: actor.id,
+      action: 'restore',
+      entityType: 'DocumentVersion',
+      entityId: created.id,
+      metadata: { documentId: id, fromVersionNumber: source.versionNumber, versionNumber },
+    });
+    return created;
+  }
+
+  /** Bandingkan metadata dua versi (konten biner dibandingkan via hash). */
+  async compareVersions(id: string, userId: string, from: string, to: string) {
+    await this.assertCanViewDocument(id, userId);
+    const [a, b] = await Promise.all([
+      this.loadVersion(id, from),
+      this.loadVersion(id, to),
+    ]);
+
+    const changes: Array<{ field: string; from: string; to: string }> = [];
+    const push = (field: string, x: unknown, y: unknown) => {
+      const xs = x === null || x === undefined ? '' : String(x);
+      const ys = y === null || y === undefined ? '' : String(y);
+      if (xs !== ys) changes.push({ field, from: xs, to: ys });
+    };
+    push('versionNumber', a.versionNumber, b.versionNumber);
+    push('fileName', a.fileName, b.fileName);
+    push('mimeType', a.mimeType, b.mimeType);
+    push('extension', a.extension, b.extension);
+    push('sizeBytes', a.sizeBytes, b.sizeBytes);
+    push('contentHash', a.contentHash, b.contentHash);
+
+    return {
+      from: a,
+      to: b,
+      contentChanged: a.contentHash !== b.contentHash,
+      sizeDeltaBytes: (BigInt(b.sizeBytes) - BigInt(a.sizeBytes)).toString(),
+      metadataChanges: changes,
+    };
   }
 
   async auditTrail(id: string, userId: string) {

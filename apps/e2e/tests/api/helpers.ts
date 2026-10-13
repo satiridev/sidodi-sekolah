@@ -186,6 +186,7 @@ export interface UploadOptions {
   documentTypeId?: string;
   folderId?: string;
   title?: string;
+  changeNote?: string;
   fileName: string;
   mimeType?: string;
   content: Buffer | string;
@@ -211,6 +212,7 @@ export async function initiateUpload(
       documentTypeId: opts.documentTypeId,
       folderId: opts.folderId,
       title: opts.title,
+      changeNote: opts.changeNote,
       fileName: opts.fileName,
       mimeType: opts.mimeType ?? 'application/octet-stream',
       sizeBytes: size,

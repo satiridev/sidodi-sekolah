@@ -889,6 +889,9 @@ paths:
                 schoolId: { type: string, format: uuid }
                 documentId: { type: string, format: uuid, nullable: true }
                 documentTypeId: { type: string, format: uuid, nullable: true }
+                folderId: { type: string, format: uuid, nullable: true }
+                title: { type: string, nullable: true }
+                changeNote: { type: string, maxLength: 500, nullable: true }
                 fileName: { type: string }
                 mimeType: { type: string }
                 sizeBytes: { type: integer, format: int64 }
@@ -981,11 +984,20 @@ paths:
               schema:
                 type: array
                 items: { $ref: '#/components/schemas/DocumentVersion' }
-    post:
+  /documents/{id}/versions/compare:
+    parameters: [{ $ref: '#/components/parameters/IdPath' }]
+    get:
       tags: [Versioning]
-      summary: Unggah versi baru (metadata)
+      summary: Bandingkan dua versi
+      parameters:
+        - { name: from, in: query, required: true, schema: { type: string, format: uuid } }
+        - { name: to, in: query, required: true, schema: { type: string, format: uuid } }
       responses:
-        '201': { description: Created }
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/VersionCompare' }
   /documents/{id}/versions/{versionId}:
     parameters:
       - { $ref: '#/components/parameters/IdPath' }
@@ -999,6 +1011,21 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/DocumentVersion' }
+        '404': { description: Versi tidak ditemukan }
+  /documents/{id}/versions/{versionId}/download:
+    parameters:
+      - { $ref: '#/components/parameters/IdPath' }
+      - { $ref: '#/components/parameters/VersionIdPath' }
+    get:
+      tags: [Versioning]
+      summary: Unduh versi tertentu (stream; redirect presigned di mode S3)
+      responses:
+        '200':
+          description: Berkas versi
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        '302': { description: Redirect ke presigned URL (mode S3) }
   /documents/{id}/versions/{versionId}/restore:
     parameters:
       - { $ref: '#/components/parameters/IdPath' }
@@ -1006,18 +1033,21 @@ paths:
     post:
       tags: [Versioning]
       summary: Restore ke versi tertentu (jadi versi baru)
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                changeNote: { type: string, maxLength: 500 }
       responses:
-        '200': { description: Restored }
-  /documents/{id}/versions/compare:
-    parameters: [{ $ref: '#/components/parameters/IdPath' }]
-    get:
-      tags: [Versioning]
-      summary: Bandingkan dua versi
-      parameters:
-        - { name: from, in: query, required: true, schema: { type: string, format: uuid } }
-        - { name: to, in: query, required: true, schema: { type: string, format: uuid } }
-      responses:
-        '200': { description: OK }
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DocumentVersion' }
+        '403': { description: Tidak berwenang }
 
   # ===================== Retention =====================
   /schools/{schoolId}/retention/queue:
@@ -2410,7 +2440,25 @@ components:
         contentHash: { type: string }
         scanStatus: { type: string, enum: [pending, clean, infected, error] }
         ocrStatus: { type: string, enum: [pending, done, failed] }
+        changeNote: { type: string, nullable: true }
+        uploadedByMembershipId: { type: string, format: uuid, nullable: true }
         createdAt: { type: string, format: date-time }
+
+    VersionCompare:
+      type: object
+      properties:
+        from: { $ref: '#/components/schemas/DocumentVersion' }
+        to: { $ref: '#/components/schemas/DocumentVersion' }
+        contentChanged: { type: boolean }
+        sizeDeltaBytes: { type: string }
+        metadataChanges:
+          type: array
+          items:
+            type: object
+            properties:
+              field: { type: string }
+              from: { type: string }
+              to: { type: string }
 
     UploadSession:
       type: object
@@ -2423,6 +2471,7 @@ components:
         sizeBytes: { type: integer, format: int64 }
         status: { type: string, enum: [initiated, completed, aborted, error] }
         documentId: { type: string, format: uuid, nullable: true }
+        changeNote: { type: string, nullable: true }
 
     PurgeQueueItem:
       type: object

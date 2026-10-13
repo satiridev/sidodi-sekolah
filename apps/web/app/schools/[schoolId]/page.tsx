@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '../../../lib/auth';
 import { AcademicPanel } from '../../../components/academic-panel';
+import { VersionPanel } from '../../../components/version-panel';
 import {
   api,
   ApiError,
@@ -74,6 +75,7 @@ export default function SchoolPage() {
   const [file, setFile] = useState<File | null>(null);
   const [docTypeId, setDocTypeId] = useState('');
   const [title, setTitle] = useState('');
+  const [changeNote, setChangeNote] = useState('');
   const [uploading, setUploading] = useState(false);
   const [uploadMessage, setUploadMessage] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -169,14 +171,18 @@ export default function SchoolPage() {
         file,
         documentTypeId: docTypeId || undefined,
         title: title || undefined,
+        changeNote: changeNote || undefined,
       });
       setUploadMessage(
         result.deduplicated
           ? 'File identik sudah ada — tidak dibuat ulang (deduplikasi).'
-          : 'Dokumen berhasil diunggah.',
+          : result.versionNumber && result.versionNumber > 1
+            ? `Versi ${result.versionNumber} berhasil diunggah.`
+            : 'Dokumen berhasil diunggah.',
       );
       setFile(null);
       setTitle('');
+      setChangeNote('');
       if (fileInputRef.current) fileInputRef.current.value = '';
       await refreshAfterMutation();
     } catch (err) {
@@ -358,6 +364,16 @@ export default function SchoolPage() {
               />
             </div>
             <div className="field">
+              <label htmlFor="doc-change-note">Catatan perubahan (opsional)</label>
+              <input
+                id="doc-change-note"
+                data-testid="upload-change-note"
+                value={changeNote}
+                onChange={(e) => setChangeNote(e.target.value)}
+                maxLength={500}
+              />
+            </div>
+            <div className="field">
               <label htmlFor="doc-file">Berkas</label>
               <input
                 id="doc-file"
@@ -494,6 +510,8 @@ export default function SchoolPage() {
           </table>
         )}
       </div>
+
+      <VersionPanel documents={docs} />
 
       <div className="card">
         <h3>Jejak Audit (Terbaru)</h3>

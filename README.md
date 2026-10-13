@@ -87,6 +87,7 @@ Semua endpoint di bawah sudah terimplementasi pada `apps/api` dan sesuai `openap
 | **Academic** | tahun ajaran, semester, kelas, jenis dokumen (CRUD + aktivasi tahun ajaran) |
 | **Folders** | generate struktur otomatis (Arsip > Administrasi > TA > Semester > Kelas > Jenis), tree, isi folder, CRUD |
 | **Documents** | list/filter, create, update, soft delete, restore, versions, audit-trail, download, check-duplicate, `POST /policy/validate` |
+| **Versioning** | riwayat versi, detail versi, unduh versi lama, bandingkan (`from`/`to`), pulihkan versi menjadi versi baru (+ catatan perubahan) |
 | **Uploads** | initiate → content (multipart) → complete (SHA-256 + dedup per sekolah) → abort/status/part |
 | **Retention** | antrean pemusnahan, aturan retensi, preview, enqueue, approve/reject, pengaturan |
 | **Compliance** | skor kepatuhan, riwayat snapshot, rincian check, laporan CSV |
@@ -104,6 +105,7 @@ POST /uploads/{id}/complete           # hitung sha256, deteksi duplikat, simpan 
 - Bila `documentId` tidak dikirim saat initiate, dokumen dibuat otomatis saat complete.
 - Duplikat byte identik per sekolah tidak dibuat ulang (`deduplicated: true`).
 - Versi baru pada dokumen yang sama menambah `versionNumber`.
+- Catatan perubahan per versi (`changeNote`) dapat dikirim saat `POST /uploads/initiate`.
 - Kuota penyimpanan sekolah bertambah saat file benar-benar tersimpan.
 
 ## Modul API (Tahap 2)
@@ -111,6 +113,7 @@ POST /uploads/{id}/complete           # hitung sha256, deteksi duplikat, simpan 
 | Modul | Ringkasan |
 |---|---|
 | **E-Raport** | data induk siswa (CRUD, soft delete, impor CSV), mata pelajaran, penugasan siswa ke kelas, entri nilai per mapel/term, generate raport PDF per kelas, unduh PDF |
+| **Versioning** | riwayat versi + catatan perubahan, detail versi, unduh versi lama, bandingkan dua versi, pulihkan versi lama menjadi versi baru |
 
 Alur E-Raport: **tahun ajaran → semester + kelas → data siswa → mata pelajaran →
 penugasan siswa ke kelas → entri nilai → generate raport (PDF)**.
@@ -124,6 +127,19 @@ penugasan siswa ke kelas → entri nilai → generate raport (PDF)**.
 - Soft delete siswa: `DELETE /students/{id}` menandai status `inactive` (nilai &
   raport tetap utuh sebagai arsip akademik permanen).
 
+Alur versioning dokumen: **unggah berkas baru ke dokumen yang sama → `versionNumber`
+naik → lihat riwayat → unduh/bandingkan → pulihkan** (`POST
+/documents/{id}/versions/{versionId}/restore`).
+
+- Restore bersifat *additive*: versi lama tidak dihapus; versi hasil pemulihan dibuat
+  baru (`versionNumber = maksimum + 1`) dan menjadi `currentVersion`.
+- Karena byte-nya identik, versi hasil restore memakai ulang `storageKey` versi asal
+  (tidak menambah kuota).
+- `GET /documents/{id}/versions/compare?from=&to=` mengembalikan `contentChanged`,
+  `sizeDeltaBytes`, dan `metadataChanges` (perbandingan konten via hash).
+- `GET /documents/{id}/versions/{versionId}/download` mengalirkan berkas versi mana pun
+  (mode S3: redirect presigned).
+
 ## Aplikasi Web (MVP)
 
 Frontend Next.js (App Router) sederhana untuk alur inti:
@@ -133,7 +149,7 @@ Frontend Next.js (App Router) sederhana untuk alur inti:
 | `/` | Landing + ringkasan fitur MVP |
 | `/login` | Masuk / daftar akun |
 | `/dashboard` | Daftar sekolah milik pengguna + form buat sekolah |
-| `/schools/[schoolId]` | Skor kepatuhan, penyimpanan, **tahun ajaran/semester/kelas**, struktur folder (generate), unggah dokumen, daftar dokumen + **legal hold**, **jejak audit**, aturan retensi |
+| `/schools/[schoolId]` | Skor kepatuhan, penyimpanan, **tahun ajaran/semester/kelas**, struktur folder (generate), unggah dokumen (+ catatan perubahan), daftar dokumen + **legal hold**, **versioning** (riwayat/unduh/bandingkan/pulihkan), **jejak audit**, aturan retensi |
 | `/schools/[schoolId]/students` | **E-Raport**: data siswa (+ impor CSV), mata pelajaran, penugasan kelas, entri nilai, generate & unduh raport PDF |
 
 - Autentikasi memakai cookie `httpOnly` (`arsip_token`) yang di-set API saat login/register;
@@ -142,6 +158,7 @@ Frontend Next.js (App Router) sederhana untuk alur inti:
 - Base URL API dibaca dari `NEXT_PUBLIC_API_URL` (default `http://localhost:3001/api/v1`).
 - Alur web (arsip): **tahun ajaran → (aktifkan) → semester + kelas → generate struktur folder → unggah → legal hold → jejak audit**.
 - Alur web (E-Raport): **data siswa → mata pelajaran → penugasan kelas → entri nilai → generate raport PDF**.
+- Alur web (versioning): **unggah dokumen + catatan perubahan → panel Versioning (pilih dokumen) → unduh/bandingkan versi → pulihkan versi menjadi versi baru**.
 
 ## Perintah Penting
 

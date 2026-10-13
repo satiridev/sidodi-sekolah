@@ -12,11 +12,14 @@ import {
 } from '@nestjs/common';
 import { Response } from 'express';
 import { DocumentsService } from './documents.service';
+import { StorageService } from '../storage/storage.service';
 import {
   CheckDuplicateDto,
+  CompareVersionsDto,
   CreateDocumentDto,
   ListDocumentsDto,
   PolicyValidateDto,
+  RestoreVersionDto,
   SchedulePurgeDto,
   SetLegalHoldDto,
   UpdateDocumentDto,
@@ -26,7 +29,10 @@ import { CurrentUser, JwtUser } from '../common/decorators';
 
 @Controller()
 export class DocumentsController {
-  constructor(private readonly documents: DocumentsService) {}
+  constructor(
+    private readonly documents: DocumentsService,
+    private readonly storage: StorageService,
+  ) {}
 
   @Get('schools/:schoolId/documents')
   @UseGuards(JwtAuthGuard)
@@ -94,6 +100,59 @@ export class DocumentsController {
   @UseGuards(JwtAuthGuard)
   versions(@Param('id') id: string, @CurrentUser() user: JwtUser) {
     return this.documents.versions(id, user.id);
+  }
+
+  @Get('documents/:id/versions/compare')
+  @UseGuards(JwtAuthGuard)
+  compareVersions(
+    @Param('id') id: string,
+    @CurrentUser() user: JwtUser,
+    @Query() query: CompareVersionsDto,
+  ) {
+    return this.documents.compareVersions(id, user.id, query.from, query.to);
+  }
+
+  @Get('documents/:id/versions/:versionId/download')
+  @UseGuards(JwtAuthGuard)
+  async downloadVersion(
+    @Param('id') id: string,
+    @Param('versionId') versionId: string,
+    @CurrentUser() user: JwtUser,
+    @Res() res: Response,
+  ) {
+    const { key, fileName, mimeType } = await this.documents.versionFile(
+      id,
+      versionId,
+      user.id,
+    );
+    if (this.storage.isRemote) {
+      res.redirect(302, await this.storage.presignedGet(key));
+      return;
+    }
+    res.setHeader('Content-Type', mimeType || 'application/octet-stream');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    res.send(this.storage.readLocal(key));
+  }
+
+  @Get('documents/:id/versions/:versionId')
+  @UseGuards(JwtAuthGuard)
+  version(
+    @Param('id') id: string,
+    @Param('versionId') versionId: string,
+    @CurrentUser() user: JwtUser,
+  ) {
+    return this.documents.version(id, versionId, user.id);
+  }
+
+  @Post('documents/:id/versions/:versionId/restore')
+  @UseGuards(JwtAuthGuard)
+  restoreVersion(
+    @Param('id') id: string,
+    @Param('versionId') versionId: string,
+    @CurrentUser() user: JwtUser,
+    @Body() dto: RestoreVersionDto,
+  ) {
+    return this.documents.restoreVersion(id, versionId, user.id, dto);
   }
 
   @Get('documents/:id/audit-trail')

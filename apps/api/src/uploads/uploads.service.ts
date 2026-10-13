@@ -87,6 +87,7 @@ export class UploadsService {
         folderId: dto.folderId,
         documentTypeId,
         title: dto.title ?? baseName(dto.fileName),
+        changeNote: dto.changeNote,
       },
     });
 
@@ -276,6 +277,7 @@ export class UploadsService {
         contentHash,
         scanStatus: 'clean', // integrasi scan antivirus = Phase 2
         uploadedByMembershipId: session.membershipId,
+        changeNote: session.changeNote,
         ocrStatus: 'pending',
       },
     });
