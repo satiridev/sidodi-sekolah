@@ -1959,6 +1959,15 @@ paths:
     get:
       tags: [Finance]
       summary: Daftar arsip keuangan
+      parameters:
+        - name: academicYearId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: category
+          in: query
+          schema:
+            type: string
+            enum: [RKAS, SPJ, KUITANSI, LAPORAN_BOS, BUKU_KAS, PAJAK, LAINNYA]
       responses:
         '200':
           description: OK
@@ -1974,7 +1983,7 @@ paths:
         required: true
         content:
           application/json:
-            schema: { $ref: '#/components/schemas/FinanceArchive' }
+            schema: { $ref: '#/components/schemas/FinanceArchiveCreate' }
       responses:
         '201':
           description: Created
@@ -1986,13 +1995,25 @@ paths:
     get:
       tags: [Finance]
       summary: Ringkasan keuangan per tahun ajaran
+      parameters:
+        - name: academicYearId
+          in: query
+          schema: { type: string, format: uuid }
       responses:
-        '200': { description: OK }
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FinanceSummary' }
   /schools/{schoolId}/finance/export:
     parameters: [{ $ref: '#/components/parameters/SchoolIdPath' }]
     get:
       tags: [Finance]
       summary: Paket ekspor audit (ZIP)
+      parameters:
+        - name: academicYearId
+          in: query
+          schema: { type: string, format: uuid }
       responses:
         '200':
           description: OK
@@ -2736,8 +2757,72 @@ components:
         schoolId: { type: string, format: uuid }
         academicYearId: { type: string, format: uuid, nullable: true }
         category: { type: string }
-        amountIdr: { type: number, nullable: true }
+        amountIdr: { type: string, nullable: true }
         documentId: { type: string, format: uuid, nullable: true }
+        createdAt: { type: string, format: date-time }
+        academicYear:
+          nullable: true
+          type: object
+          properties:
+            id: { type: string, format: uuid }
+            name: { type: string }
+        document:
+          nullable: true
+          type: object
+          properties:
+            id: { type: string, format: uuid }
+            title: { type: string }
+            status: { type: string }
+            retentionExpiresAt: { type: string, format: date-time, nullable: true }
+            isLegalHold: { type: boolean }
+            documentType:
+              nullable: true
+              type: object
+              properties:
+                name: { type: string }
+                code: { type: string }
+            currentVersion:
+              nullable: true
+              type: object
+              properties:
+                fileName: { type: string }
+                sizeBytes: { type: string }
+    FinanceArchiveCreate:
+      type: object
+      required: [category]
+      properties:
+        category:
+          type: string
+          enum: [RKAS, SPJ, KUITANSI, LAPORAN_BOS, BUKU_KAS, PAJAK, LAINNYA]
+        academicYearId: { type: string, format: uuid }
+        amountIdr: { type: number }
+        documentId: { type: string, format: uuid }
+    FinanceSummary:
+      type: object
+      properties:
+        filters:
+          type: object
+          properties:
+            academicYearId: { type: string, format: uuid, nullable: true }
+        totalCount: { type: integer }
+        totalAmountIdr: { type: string }
+        byCategory:
+          type: array
+          items:
+            type: object
+            properties:
+              category: { type: string }
+              count: { type: integer }
+              totalAmountIdr: { type: string }
+        byAcademicYear:
+          type: array
+          items:
+            type: object
+            properties:
+              academicYearId: { type: string, format: uuid, nullable: true }
+              academicYearName: { type: string, nullable: true }
+              count: { type: integer }
+              totalAmountIdr: { type: string }
 
     ApiKey:
       type: object

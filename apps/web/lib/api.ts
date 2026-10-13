@@ -74,6 +74,23 @@ async function request<T>(
   return data as T;
 }
 
+/** Unduh respons biner (mis. paket ZIP) memakai cookie autentikasi. */
+async function requestBlob(path: string): Promise<Blob> {
+  const res = await fetch(`${API_URL}${path}`, { credentials: 'include' });
+  if (!res.ok) {
+    const text = await res.text();
+    const data = safeJson(text) as any;
+    const err = data?.error;
+    throw new ApiError(
+      res.status,
+      err?.code ?? 'ERROR',
+      err?.message ?? res.statusText,
+      err?.details,
+    );
+  }
+  return res.blob();
+}
+
 // ---------- Tipe data ----------
 
 export interface AuthUser {
@@ -401,6 +418,54 @@ export interface EijazahVerifyResult {
   revokedAt?: string | null;
 }
 
+
+// ---------- Arsip Keuangan/BOS ----------
+
+export type FinanceCategoryValue =
+  | 'RKAS'
+  | 'SPJ'
+  | 'KUITANSI'
+  | 'LAPORAN_BOS'
+  | 'BUKU_KAS'
+  | 'PAJAK'
+  | 'LAINNYA';
+
+export interface FinanceArchiveItem {
+  id: string;
+  schoolId: string;
+  academicYearId: string | null;
+  category: string;
+  amountIdr: string | null;
+  documentId: string | null;
+  createdAt: string;
+  academicYear?: { id: string; name: string } | null;
+  document?: {
+    id: string;
+    title: string;
+    status: string;
+    retentionExpiresAt: string | null;
+    isLegalHold: boolean;
+    documentType?: { name: string; code: string } | null;
+    currentVersion?: { fileName: string; sizeBytes: string } | null;
+  } | null;
+}
+
+export interface FinanceSummary {
+  filters: { academicYearId: string | null };
+  totalCount: number;
+  totalAmountIdr: string;
+  byCategory: Array<{
+    category: string;
+    count: number;
+    totalAmountIdr: string;
+  }>;
+  byAcademicYear: Array<{
+    academicYearId: string | null;
+    academicYearName: string | null;
+    count: number;
+    totalAmountIdr: string;
+  }>;
+}
 
 // ---------- Endpoint ----------
 
@@ -735,5 +800,48 @@ export const api = {
     return request<EijazahVerifyResult>(
       `/verify/${encodeURIComponent(serial)}`,
     );
+  },
+
+  // Arsip Keuangan/BOS
+  financeArchives(
+    schoolId: string,
+    params: { academicYearId?: string; category?: FinanceCategoryValue } = {},
+  ) {
+    const qs = new URLSearchParams();
+    if (params.academicYearId) qs.set('academicYearId', params.academicYearId);
+    if (params.category) qs.set('category', params.category);
+    const suffix = qs.toString() ? `?${qs.toString()}` : '';
+    return request<FinanceArchiveItem[]>(
+      `/schools/${schoolId}/finance/archives${suffix}`,
+    );
+  },
+  createFinanceArchive(
+    schoolId: string,
+    data: {
+      category: FinanceCategoryValue;
+      academicYearId?: string;
+      amountIdr?: number;
+      documentId?: string;
+    },
+  ) {
+    return request<FinanceArchiveItem>(
+      `/schools/${schoolId}/finance/archives`,
+      { method: 'POST', body: data },
+    );
+  },
+  financeSummary(schoolId: string, academicYearId?: string) {
+    const suffix = academicYearId
+      ? `?academicYearId=${encodeURIComponent(academicYearId)}`
+      : '';
+    return request<FinanceSummary>(
+      `/schools/${schoolId}/finance/summary${suffix}`,
+    );
+  },
+  /** Unduh paket audit (ZIP) sebagai blob. */
+  financeExport(schoolId: string, academicYearId?: string) {
+    const suffix = academicYearId
+      ? `?academicYearId=${encodeURIComponent(academicYearId)}`
+      : '';
+    return requestBlob(`/schools/${schoolId}/finance/export${suffix}`);
   },
 };

@@ -105,4 +105,19 @@ export class StorageService {
   readLocal(key: string): Buffer {
     return readFileSync(this.localPath(key));
   }
+
+  /** Ambil isi berkas sebagai buffer (mode S3 maupun lokal). */
+  async getBuffer(key: string): Promise<Buffer> {
+    if (this.s3 && this.bucket) {
+      const res = await this.s3.send(
+        new GetObjectCommand({ Bucket: this.bucket, Key: key }),
+      );
+      if (!res.Body) {
+        throw new BadRequestException(`Berkas tidak ditemukan: ${key}`);
+      }
+      const bytes = await res.Body.transformToByteArray();
+      return Buffer.from(bytes);
+    }
+    return this.readLocal(key);
+  }
 }

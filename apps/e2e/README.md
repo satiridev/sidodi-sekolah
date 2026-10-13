@@ -5,7 +5,7 @@ Suite **Playwright** untuk menguji sistem secara end-to-end. Dua project:
 | Project | Lokasi | Cakupan |
 |---|---|---|
 | `api` | `tests/api/` | End-to-end lewat HTTP API (`APIRequestContext`) |
-| `web` | `tests/web/` | Alur browser (Chromium): daftar → buat sekolah → tahun ajaran/semester/kelas → generate folder → unggah → legal hold → versioning; alur **E-Raport** (siswa → mapel → nilai → raport PDF); alur **E-Ijazah** (batch → terbitkan → verifikasi); proteksi rute; smoke halaman |
+| `web` | `tests/web/` | Alur browser (Chromium): daftar → buat sekolah → tahun ajaran/semester/kelas → generate folder → unggah → legal hold → versioning; alur **E-Raport** (siswa → mapel → nilai → raport PDF); alur **E-Ijazah** (batch → terbitkan → verifikasi); alur **Keuangan/BOS** (unggah → arsip → ekspor ZIP); proteksi rute; smoke halaman |
 
 ## Prasyarat
 
@@ -76,13 +76,15 @@ tests/
 │   ├── 07-retention-compliance.spec.ts
 │   ├── 08-eraport.spec.ts             # E-Raport: siswa, mapel, nilai, raport PDF
 │   ├── 09-versioning.spec.ts          # Versioning: riwayat, unduh, bandingkan, restore
-│   └── 10-eijazah.spec.ts             # E-Ijazah: batch, generate, terbitkan, cabut, verifikasi, PDF
+│   ├── 10-eijazah.spec.ts             # E-Ijazah: batch, generate, terbitkan, cabut, verifikasi, PDF
+│   └── 11-keuangan.spec.ts            # Keuangan/BOS: arsip, ringkasan per TA, ekspor paket audit (ZIP)
 └── web/
     ├── home.spec.ts                 # smoke halaman landing
     ├── guard.spec.ts                # proteksi rute (middleware redirect ke /login)
     ├── flow.spec.ts                 # daftar -> sekolah -> akademik -> folder -> unggah -> legal hold
     ├── eraport.spec.ts              # alur E-Raport di browser (siswa -> nilai -> raport PDF)
     ├── eijazah.spec.ts              # alur E-Ijazah di browser (batch -> terbitkan -> verifikasi)
+    ├── keuangan.spec.ts             # alur Keuangan/BOS di browser (unggah -> arsip -> ekspor ZIP)
     └── versioning.spec.ts           # alur versioning di browser (catatan -> pulihkan -> bandingkan)
 ```
 

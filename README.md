@@ -117,6 +117,7 @@ POST /uploads/{id}/complete           # hitung sha256, deteksi duplikat, simpan 
 | **E-Raport** | data induk siswa (CRUD, soft delete, impor CSV), mata pelajaran, penugasan siswa ke kelas, entri nilai per mapel/term, generate raport PDF per kelas, unduh PDF |
 | **E-Ijazah** | batch per tahun ajaran, generate sertifikat untuk siswa terdaftar, terbitkan + tanda tangan elektronik (HMAC-SHA256), cabut ijazah, unduh PDF ber-QR, verifikasi publik via nomor seri |
 | **Versioning** | riwayat versi + catatan perubahan, detail versi, unduh versi lama, bandingkan dua versi, pulihkan versi lama menjadi versi baru |
+| **Arsip Keuangan/BOS** | pencatatan arsip keuangan (RKAS, SPJ, kuitansi, laporan BOS, dll.) bertaut dokumen + nominal, ringkasan per tahun ajaran, ekspor paket audit (ZIP + manifest) |
 
 Alur E-Raport: **tahun ajaran → semester + kelas → data siswa → mata pelajaran →
 penugasan siswa ke kelas → entri nilai → generate raport (PDF)**.
@@ -160,6 +161,18 @@ terbitkan + tanda tangan → verifikasi publik / unduh PDF**.
 - `GET /verify/{serial}` (publik, tanpa autentikasi) mengembalikan `valid`, `status`,
   nama siswa, dan nama sekolah.
 
+Alur Arsip Keuangan/BOS: **unggah/taut dokumen keuangan → catat arsip (kategori +
+nominal + tahun ajaran) → ringkasan per TA → ekspor paket audit (ZIP)**.
+
+- Kategori: `RKAS`, `SPJ`, `KUITANSI`, `LAPORAN_BOS`, `BUKU_KAS`, `PAJAK`, `LAINNYA`.
+- Arsip dapat menautkan `documentId` (opsional); dokumen tertaut tetap tunduk pada
+  retensi & legal hold yang berlaku (`document_types`, retensi default 5 tahun).
+- `GET /schools/{id}/finance/summary` mengembalikan total & rekap per kategori dan
+  per tahun ajaran (nominal diserialisasi sebagai string).
+- `GET /schools/{id}/finance/export` (role kepala sekolah / kepala TU / auditor)
+  menghasilkan berkas ZIP berisi `manifest.json`, `README.txt`, dan salinan berkas
+  dokumen tertaut; tindakan ini tercatat pada jejak audit.
+
 ## Aplikasi Web (MVP)
 
 Frontend Next.js (App Router) sederhana untuk alur inti:
@@ -172,6 +185,7 @@ Frontend Next.js (App Router) sederhana untuk alur inti:
 | `/schools/[schoolId]` | Skor kepatuhan, penyimpanan, **tahun ajaran/semester/kelas**, struktur folder (generate), unggah dokumen (+ catatan perubahan), daftar dokumen + **legal hold**, **versioning** (riwayat/unduh/bandingkan/pulihkan), **jejak audit**, aturan retensi |
 | `/schools/[schoolId]/students` | **E-Raport**: data siswa (+ impor CSV), mata pelajaran, penugasan kelas, entri nilai, generate & unduh raport PDF |
 | `/schools/[schoolId]/eijazah` | **E-Ijazah**: batch per tahun ajaran, generate sertifikat, terbitkan/cabut, unduh PDF, verifikasi nomor seri |
+| `/schools/[schoolId]/keuangan` | **Arsip Keuangan/BOS**: catat arsip keuangan bertaut dokumen, ringkasan per tahun ajaran, ekspor paket audit (ZIP) |
 | `/verify/[serial]` | **Verifikasi publik ijazah** (tanpa login): valid/tidak + metadata |
 
 - Autentikasi memakai cookie `httpOnly` (`arsip_token`) yang di-set API saat login/register;
@@ -182,6 +196,7 @@ Frontend Next.js (App Router) sederhana untuk alur inti:
 - Alur web (E-Raport): **data siswa → mata pelajaran → penugasan kelas → entri nilai → generate raport PDF**.
 - Alur web (versioning): **unggah dokumen + catatan perubahan → panel Versioning (pilih dokumen) → unduh/bandingkan versi → pulihkan versi menjadi versi baru**.
 - Alur web (E-Ijazah): **pilih tahun ajaran → buat/pilih batch → generate ijazah → terbitkan → verifikasi nomor seri** (halaman publik `/verify/:serial`).
+- Alur web (Keuangan/BOS): **unggah dokumen keuangan → catat arsip (kategori + nominal + dokumen) → ringkasan per tahun ajaran → ekspor paket audit (ZIP)**.
 
 ## Perintah Penting
 
