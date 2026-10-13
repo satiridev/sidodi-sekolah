@@ -1,0 +1,2544 @@
+openapi: 3.0.3
+info:
+  title: Arsip Digital Sekolah API
+  version: 0.1.0
+  description: |
+    API SaaS arsip digital sekolah (compliance-first).
+    Mencakup endpoint Tahap 1 (MVP) dan Tahap 2 (fase lanjutan).
+    Autentikasi: session cookie (`cookieAuth`) atau Bearer token (`bearerAuth`).
+    Semua endpoint tenant memerlukan konteks `schoolId` + pemeriksaan role via membership.
+servers:
+  - url: https://api.arsip-sekolah.id/api/v1
+    description: Production
+  - url: http://localhost:3001/api/v1
+    description: Local development
+tags:
+  - name: Auth
+  - name: Schools
+  - name: Members
+  - name: SK Documents
+  - name: Academic
+  - name: Folders
+  - name: Documents
+  - name: Uploads
+  - name: Versioning
+  - name: Retention
+  - name: Sharing
+  - name: Compliance
+  - name: Audit
+  - name: Notifications
+  - name: Search
+  - name: Billing
+  - name: SSO
+  - name: Backups
+  - name: On-Prem Agents
+  - name: E-Ijazah
+  - name: E-Raport
+  - name: Finance
+  - name: Analytics
+  - name: Integrations
+  - name: System
+security:
+  - cookieAuth: []
+  - bearerAuth: []
+
+paths:
+  # ===================== Auth =====================
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Daftar akun user
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password, name]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, minLength: 8 }
+                name: { type: string }
+      responses:
+        '201': { $ref: '#/components/responses/UserResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string }
+      responses:
+        '200': { $ref: '#/components/responses/UserResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Logout
+      responses:
+        '204': { description: Logged out }
+  /auth/forgot-password:
+    post:
+      tags: [Auth]
+      summary: Kirim email reset password
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, format: email }
+      responses:
+        '202': { description: Accepted }
+  /auth/reset-password:
+    post:
+      tags: [Auth]
+      summary: Reset password dengan token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, password]
+              properties:
+                token: { type: string }
+                password: { type: string, minLength: 8 }
+      responses:
+        '200': { description: Password updated }
+  /auth/verify-email:
+    post:
+      tags: [Auth]
+      summary: Verifikasi email
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token: { type: string }
+      responses:
+        '200': { description: Verified }
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Profil user + daftar membership
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user: { $ref: '#/components/schemas/User' }
+                  memberships:
+                    type: array
+                    items: { $ref: '#/components/schemas/Membership' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  # ===================== Schools =====================
+  /schools:
+    post:
+      tags: [Schools]
+      summary: Buat sekolah (pembuat menjadi headmaster)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, slug]
+              properties:
+                name: { type: string }
+                slug: { type: string }
+                npsn: { type: string }
+                address: { type: string }
+                city: { type: string }
+                province: { type: string }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/School' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+  /schools/{schoolId}:
+    parameters: [{ $ref: '#/components/parameters/SchoolIdPath' }]
+    get:
+      tags: [Schools]
+      summary: Detail sekolah
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/School' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Schools]
+      summary: Update profil sekolah
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SchoolUpdate' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/School' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /schools/slug/{slug}:
+    parameters:
+      - name: slug
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [Schools]
+      summary: Info minimal sekolah (landing undangan)
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  name: { type: string }
+                  slug: { type: string }
+                  logoUrl: { type: string, nullable: true }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /schools/{schoolId}/storage:
+    parameters: [{ $ref: '#/components/parameters/SchoolIdPath' }]
+    get:
+      tags: [Schools]
+      summary: Kuota & pemakaian storage
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  quotaBytes: { type: integer, format: int64 }
+                  usedBytes: { type: integer, format: int64 }
+                  maxFileSizeBytes: { type: integer, format: int64 }
+  /schools/{schoolId}/settings:
+    parameters: [{ $ref: '#/components/parameters/SchoolIdPath' }]
+    patch:
+      tags: [Schools]
+      summary: Update setting sekolah (mis. batas ukuran file)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                maxFileSizeBytes: { type: integer, format: int64 }
+                timezone: { type: string }
+      responses:
+        '200': { description: OK }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  # ===================== Members =====================
+  /schools/{schoolId}/members:
+    parameters: [{ $ref: '#/components/parameters/SchoolIdPath' }]
+    get:
+      tags: [Members]
+      summary: Daftar anggota sekolah
+      parameters:
+        - { $ref: '#/components/parameters/PageParam' }
+        - { $ref: '#/components/parameters/LimitParam' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Paginated'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/Membership' }
+  /schools/{schoolId}/members/invite:
+    parameters: [{ $ref: '#/components/parameters/SchoolIdPath' }]
+    post:
+      tags: [Members]
+      summary: Undang user ke sekolah
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, role]
+              properties:
+                email: { type: string, format: email }
+                role: { $ref: '#/components/schemas/UserRole' }
+      responses:
+        '201': { description: Invitation sent }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /schools/{schoolId}/members/{membershipId}:
+    parameters:
+      - { $ref: '#/components/parameters/SchoolIdPath' }
+      - { $ref: '#/components/parameters/MembershipIdPath' }
+    patch:
+      tags: [Members]
+      summary: Ubah role/status anggota
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                role: { $ref: '#/components/schemas/UserRole' }
+                status: { $ref: '#/components/schemas/MembershipStatus' }
+      responses:
+        '200': { description: OK }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    delete:
+      tags: [Members]
+      summary: Hapus anggota
+      responses:
+        '204': { description: Deleted }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /invitations/{token}:
+    parameters:
+      - name: token
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [Members]
+      summary: Preview undangan
+      security: []
+      responses:
+        '200': { description: OK }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /invitations/{token}/accept:
+    parameters:
+      - name: token
+        in: path
+        required: true
+        schema: { type: string }
+    post:
+      tags: [Members]
+      summary: Terima undangan
+      responses:
+        '200': { description: Joined }
+        '410': { description: Invitation expired }
+
+  # ===================== SK Documents =====================
+  /schools/{schoolId}/sk-documents:
+    parameters: [{ $ref: '#/components/parameters/SchoolIdPath' }]
+    get:
+      tags: [SK Documents]
+      summary: Daftar SK
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/SKDocument' }
+    post:
+      tags: [SK Documents]
+      summary: Unggah SK
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, issuedDate, storageKey]
+              properties:
+                title: { type: string }
+                number: { type: string }
+                issuedDate: { type: string, format: date }
+                storageKey: { type: string }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SKDocument' }
+  /sk-documents/{id}:
+    parameters: [{ $ref: '#/components/parameters/IdPath' }]
+    patch:
+      tags: [SK Documents]
+      summary: Update SK
+      responses:
+        '200': { description: OK }
+    delete:
+      tags: [SK Documents]
+      summary: Hapus SK
+      responses:
+        '204': { description: Deleted }
+
+  # ===================== Academic =====================
+  /schools/{schoolId}/academic-years:
+    parameters: [{ $ref: '#/components/parameters/SchoolIdPath' }]
+    get:
+      tags: [Academic]
+      summary: Daftar tahun ajaran
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/AcademicYear' }
+    post:
+      tags: [Academic]
+      summary: Buat tahun ajaran
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, startDate, endDate]
+              properties:
+                name: { type: string, example: "2025/2026" }
+                startDate: { type: string, format: date }
+                endDate: { type: string, format: date }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AcademicYear' }
+  /academic-years/{id}:
+    parameters: [{ $ref: '#/components/parameters/IdPath' }]
+    get:
+      tags: [Academic]
+      summary: Detail tahun ajaran
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AcademicYear' }
+    patch:
+      tags: [Academic]
+      summary: Update tahun ajaran
+      responses:
+        '200': { description: OK }
+    delete:
+      tags: [Academic]
+      summary: Hapus tahun ajaran
+      responses:
+        '204': { description: Deleted }
+  /academic-years/{id}/activate:
+    parameters: [{ $ref: '#/components/parameters/IdPath' }]
+    post:
+      tags: [Academic]
+      summary: Aktifkan tahun ajaran
+      responses:
+        '200': { description: Activated }
+  /academic-years/{id}/semesters:
+    parameters: [{ $ref: '#/components/parameters/IdPath' }]
+    get:
+      tags: [Academic]
+      summary: Daftar semester
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Semester' }
+    post:
+      tags: [Academic]
+      summary: Buat semester
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, term]
+              properties:
+                name: { type: string }
+                term: { $ref: '#/components/schemas/AcademicTerm' }
+                startDate: { type: string, format: date }
+                endDate: { type: string, format: date }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Semester' }
+  /semesters/{id}:
+    parameters: [{ $ref: '#/components/parameters/IdPath' }]
+    get:
+      tags: [Academic]
+      summary: Detail semester
+      responses:
+        '200': { description: OK }
+    patch:
+      tags: [Academic]
+      summary: Update semester
+      responses:
+        '200': { description: OK }
+    delete:
+      tags: [Academic]
+      summary: Hapus semester
+      responses:
+        '204': { description: Deleted }
+  /schools/{schoolId}/classrooms:
+    parameters: [{ $ref: '#/components/parameters/SchoolIdPath' }]
+    get:
+      tags: [Academic]
+      summary: Daftar kelas
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Classroom' }
+    post:
+      tags: [Academic]
+      summary: Buat kelas
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [academicYearId, name, gradeLevel]
+              properties:
+                academicYearId: { type: string, format: uuid }
+                name: { type: string, example: "7A" }
+                gradeLevel: { type: integer }
+                homeroomTeacherMembershipId: { type: string, format: uuid, nullable: true }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Classroom' }
+  /classrooms/{id}:
+    parameters: [{ $ref: '#/components/parameters/IdPath' }]
+    get:
+      tags: [Academic]
+      summary: Detail kelas
+      responses:
+        '200': { description: OK }
+    patch:
+      tags: [Academic]
+      summary: Update kelas
+      responses:
+        '200': { description: OK }
+    delete:
+      tags: [Academic]
+      summary: Hapus kelas
+      responses:
+        '204': { description: Deleted }
+  /schools/{schoolId}/document-types:
+    parameters: [{ $ref: '#/components/parameters/SchoolIdPath' }]
+    get:
+      tags: [Academic]
+      summary: Daftar jenis dokumen
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/DocumentType' }
+    post:
+      tags: [Academic]
+      summary: Buat jenis dokumen
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DocumentTypeInput' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DocumentType' }
+  /document-types/{id}:
+    parameters: [{ $ref: '#/components/parameters/IdPath' }]
+    get:
+      tags: [Academic]
+      summary: Detail jenis dokumen
+      responses:
+        '200': { description: OK }
+    patch:
+      tags: [Academic]
+      summary: Update jenis dokumen
+      responses:
+        '200': { description: OK }
+    delete:
+      tags: [Academic]
+      summary: Hapus jenis dokumen
+      responses:
+        '204': { description: Deleted }
+
+  # ===================== Folders =====================
+  /schools/{schoolId}/folders/tree:
+    parameters: [{ $ref: '#/components/parameters/SchoolIdPath' }]
+    get:
+      tags: [Folders]
+      summary: Pohon folder
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Folder' }
+  /schools/{schoolId}/folders/generate:
+    parameters: [{ $ref: '#/components/parameters/SchoolIdPath' }]
+    post:
+      tags: [Folders]
+      summary: Auto-generate struktur folder (TA > Semester > Kelas > Jenis)
+      responses:
+        '201': { description: Generated }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /folders/{id}:
+    parameters: [{ $ref: '#/components/parameters/IdPath' }]
+    get:
+      tags: [Folders]
+      summary: Detail folder
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Folder' }
+    patch:
+      tags: [Folders]
+      summary: Rename / pindah folder
+      responses:
+        '200': { description: OK }
+    delete:
+      tags: [Folders]
+      summary: Hapus folder (harus kosong)
+      responses:
+        '204': { description: Deleted }
+        '409': { description: Folder tidak kosong }
+  /folders/{id}/contents:
+    parameters: [{ $ref: '#/components/parameters/IdPath' }]
+    get:
+      tags: [Folders]
+      summary: Isi folder (sub-folder + dokumen)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  folders:
+                    type: array
+                    items: { $ref: '#/components/schemas/Folder' }
+                  documents:
+                    type: array
+                    items: { $ref: '#/components/schemas/Document' }
+  /folders:
+    post:
+      tags: [Folders]
+      summary: Buat folder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [schoolId, name]
+              properties:
+                schoolId: { type: string, format: uuid }
+                parentId: { type: string, format: uuid, nullable: true }
+                name: { type: string }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Folder' }
+
+  # ===================== Documents =====================
+  /schools/{schoolId}/documents:
+    parameters: [{ $ref: '#/components/parameters/SchoolIdPath' }]
+    get:
+      tags: [Documents]
+      summary: Daftar dokumen + filter
+      parameters:
+        - { $ref: '#/components/parameters/PageParam' }
+        - { $ref: '#/components/parameters/LimitParam' }
+        - { name: folderId, in: query, schema: { type: string, format: uuid } }
+        - { name: documentTypeId, in: query, schema: { type: string, format: uuid } }
+        - { name: status, in: query, schema: { $ref: '#/components/schemas/DocStatus' } }
+        - name: tags
+          in: query
+          schema: { type: array, items: { type: string } }
+          style: form
+          explode: false
+        - { name: q, in: query, schema: { type: string } }
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Paginated'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/Document' }
+  /documents:
+    post:
+      tags: [Documents]
+      summary: Buat metadata dokumen
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DocumentInput' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Document' }
+  /documents/check-duplicate:
+    post:
+      tags: [Uploads]
+      summary: Cek duplikat berdasarkan hash
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [contentHash, schoolId]
+              properties:
+                schoolId: { type: string, format: uuid }
+                contentHash: { type: string }
+      responses:
+        '200':
+          description: Hasil cek
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  duplicate: { type: boolean }
+                  documentId: { type: string, format: uuid, nullable: true }
+  /policy/validate:
+    post:
+      tags: [Uploads]
+      summary: Validasi pra-upload (ekstensi & ukuran)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [schoolId, fileName, sizeBytes]
+              properties:
+                schoolId: { type: string, format: uuid }
+                documentTypeId: { type: string, format: uuid }
+                fileName: { type: string }
+                sizeBytes: { type: integer, format: int64 }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  allowed: { type: boolean }
+                  reasons:
+                    type: array
+                    items: { type: string }
+  /documents/{id}:
+    parameters: [{ $ref: '#/components/parameters/IdPath' }]
+    get:
+      tags: [Documents]
+      summary: Detail dokumen
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Document' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Documents]
+      summary: Update metadata dokumen
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DocumentUpdate' }
+      responses:
+        '200': { description: OK }
+    delete:
+      tags: [Documents]
+      summary: Soft delete (pindah ke trash)
+      responses:
+        '204': { description: Deleted }
+  /documents/{id}/restore:
+    parameters: [{ $ref: '#/components/parameters/IdPath' }]
+    post:
+      tags: [Documents]
+      summary: Pulihkan dokumen
+      responses:
+        '200': { description: Restored }
+  /documents/{id}/download:
+    parameters: [{ $ref: '#/components/parameters/IdPath' }]
+    get:
+      tags: [Documents]
+      summary: URL presigned download
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  url: { type: string, format: uri }
+                  expiresAt: { type: string, format: date-time }
+  /documents/{id}/preview:
+    parameters: [{ $ref: '#/components/parameters/IdPath' }]
+    get:
+      tags: [Documents]
+      summary: URL presigned inline preview
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  url: { type: string, format: uri }
+  /documents/{id}/audit-trail:
+    parameters: [{ $ref: '#/components/parameters/IdPath' }]
+    get:
+      tags: [Documents]
+      summary: Riwayat aksi dokumen
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/AuditLog' }
+
+  # ===================== Uploads =====================
+  /uploads/initiate:
+    post:
+      tags: [Uploads]
+      summary: Mulai sesi upload (validasi awal)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [schoolId, fileName, mimeType, sizeBytes]
+              properties:
+                schoolId: { type: string, format: uuid }
+                documentId: { type: string, format: uuid, nullable: true }
+                documentTypeId: { type: string, format: uuid, nullable: true }
+                fileName: { type: string }
+                mimeType: { type: string }
+                sizeBytes: { type: integer, format: int64 }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UploadSession' }
+        '422': { description: Gagal validasi policy }
+  /uploads/{sessionId}/part:
+    parameters: [{ $ref: '#/components/parameters/SessionIdPath' }]
+    post:
+      tags: [Uploads]
+      summary: URL presigned untuk satu part
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [partNumber]
+              properties:
+                partNumber: { type: integer }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  partNumber: { type: integer }
+                  url: { type: string, format: uri }
+  /uploads/{sessionId}/complete:
+    parameters: [{ $ref: '#/components/parameters/SessionIdPath' }]
+    post:
+      tags: [Uploads]
+      summary: Selesaikan upload (hash, dedup, virus scan)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                parts:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      partNumber: { type: integer }
+                      etag: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DocumentVersion' }
+  /uploads/{sessionId}/abort:
+    parameters: [{ $ref: '#/components/parameters/SessionIdPath' }]
+    post:
+      tags: [Uploads]
+      summary: Batalkan upload
+      responses:
+        '204': { description: Aborted }
+  /uploads/{sessionId}/status:
+    parameters: [{ $ref: '#/components/parameters/SessionIdPath' }]
+    get:
+      tags: [Uploads]
+      summary: Status proses upload
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UploadSession' }
+
+  # ===================== Versioning =====================
+  /documents/{id}/versions:
+    parameters: [{ $ref: '#/components/parameters/IdPath' }]
+    get:
+      tags: [Versioning]
+      summary: Riwayat versi dokumen
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/DocumentVersion' }
+    post:
+      tags: [Versioning]
+      summary: Unggah versi baru (metadata)
+      responses:
+        '201': { description: Created }
+  /documents/{id}/versions/{versionId}:
+    parameters:
+      - { $ref: '#/components/parameters/IdPath' }
+      - { $ref: '#/components/parameters/VersionIdPath' }
+    get:
+      tags: [Versioning]
+      summary: Detail versi
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DocumentVersion' }
+  /documents/{id}/versions/{versionId}/restore:
+    parameters:
+      - { $ref: '#/components/parameters/IdPath' }
+      - { $ref: '#/components/parameters/VersionIdPath' }
+    post:
+      tags: [Versioning]
+      summary: Restore ke versi tertentu (jadi versi baru)
+      responses:
+        '200': { description: Restored }
+  /documents/{id}/versions/compare:
+    parameters: [{ $ref: '#/components/parameters/IdPath' }]
+    get:
+      tags: [Versioning]
+      summary: Bandingkan dua versi
+      parameters:
+        - { name: from, in: query, required: true, schema: { type: string, format: uuid } }
+        - { name: to, in: query, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: OK }
+
+  # ===================== Retention =====================
+  /schools/{schoolId}/retention/queue:
+    parameters: [{ $ref: '#/components/parameters/SchoolIdPath' }]
+    get:
+      tags: [Retention]
+      summary: Dokumen menunggu pemusnahan
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/PurgeQueueItem' }
+  /schools/{schoolId}/retention/settings:
+    parameters: [{ $ref: '#/components/parameters/SchoolIdPath' }]
+    get:
+      tags: [Retention]
+      summary: Setting retensi sekolah
+      responses:
+        '200': { description: OK }
+    patch:
+      tags: [Retention]
+      summary: Update setting retensi
+      responses:
+        '200': { description: OK }
+  /schools/{schoolId}/retention/rules:
+    parameters: [{ $ref: '#/components/parameters/SchoolIdPath' }]
+    get:
+      tags: [Retention]
+      summary: Daftar aturan retensi
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/RetentionRule' }
+    post:
+      tags: [Retention]
+      summary: Buat aturan retensi
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RetentionRule' }
+      responses:
+        '201': { description: Created }
+  /retention/rules/{id}:
+    parameters: [{ $ref: '#/components/parameters/IdPath' }]
+    patch:
+      tags: [Retention]
+      summary: Update aturan retensi
+      responses:
+        '200': { description: OK }
+    delete:
+      tags: [Retention]
+      summary: Hapus aturan retensi
+      responses:
+        '204': { description: Deleted }
+  /schools/{schoolId}/retention/preview:
+    parameters: [{ $ref: '#/components/parameters/SchoolIdPath' }]
+    get:
+      tags: [Retention]
+      summary: Simulasi jadwal pemusnahan
+      responses:
+        '200': { description: OK }
+  /purge-queue/{id}/approve:
+    parameters: [{ $ref: '#/components/parameters/IdPath' }]
+    post:
+      tags: [Retention]
+      summary: Setujui pemusnahan
+      responses:
+        '200': { description: Approved }
+  /purge-queue/{id}/reject:
+    parameters: [{ $ref: '#/components/parameters/IdPath' }]
+    post:
+      tags: [Retention]
+      summary: Tolak pemusnahan
+      responses:
+        '200': { description: Rejected }
+  /documents/{id}/legal-hold:
+    parameters: [{ $ref: '#/components/parameters/IdPath' }]
+    post:
+      tags: [Retention]
+      summary: Pasang legal hold
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string }
+      responses:
+        '200': { description: OK }
+    delete:
+      tags: [Retention]
+      summary: Lepas legal hold
+      responses:
+        '204': { description: Removed }
+  /documents/{id}/schedule-purge:
+    parameters: [{ $ref: '#/components/parameters/IdPath' }]
+    post:
+      tags: [Retention]
+      summary: Jadwalkan pemusnahan
+      responses:
+        '200': { description: Scheduled }
+  /documents/{id}/cancel-purge:
+    parameters: [{ $ref: '#/components/parameters/IdPath' }]
+    post:
+      tags: [Retention]
+      summary: Batalkan pemusnahan
+      responses:
+        '200': { description: Cancelled }
+
+  # ===================== Sharing =====================
+  /documents/{id}/share-links:
+    parameters: [{ $ref: '#/components/parameters/IdPath' }]
+    get:
+      tags: [Sharing]
+      summary: Daftar link berbagi
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ShareLink' }
+    post:
+      tags: [Sharing]
+      summary: Buat link berbagi
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                expiresAt: { type: string, format: date-time }
+                password: { type: string }
+                allowDownload: { type: boolean, default: true }
+                maxUses: { type: integer }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ShareLink' }
+  /share-links/{id}:
+    parameters: [{ $ref: '#/components/parameters/IdPath' }]
+    delete:
+      tags: [Sharing]
+      summary: Cabut link berbagi
+      responses:
+        '204': { description: Revoked }
+  /share/{token}:
+    parameters:
+      - name: token
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [Sharing]
+      summary: Metadata publik link berbagi
+      security: []
+      responses:
+        '200': { description: OK }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /share/{token}/download:
+    parameters:
+      - name: token
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [Sharing]
+      summary: Unduh via link berbagi
+      security: []
+      responses:
+        '302': { description: Redirect ke file }
+
+  # ===================== Compliance =====================
+  /schools/{schoolId}/compliance/score:
+    parameters: [{ $ref: '#/components/parameters/SchoolIdPath' }]
+    get:
+      tags: [Compliance]
+      summary: Skor kepatuhan saat ini + breakdown
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ComplianceScore' }
+  /schools/{schoolId}/compliance/score/history:
+    parameters: [{ $ref: '#/components/parameters/SchoolIdPath' }]
+    get:
+      tags: [Compliance]
+      summary: Riwayat skor kepatuhan
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ComplianceScore' }
+  /schools/{schoolId}/compliance/checks:
+    parameters: [{ $ref: '#/components/parameters/SchoolIdPath' }]
+    get:
+      tags: [Compliance]
+      summary: Detail tiap indikator kepatuhan
+      responses:
+        '200': { description: OK }
+  /schools/{schoolId}/compliance/report:
+    parameters: [{ $ref: '#/components/parameters/SchoolIdPath' }]
+    get:
+      tags: [Compliance]
+      summary: Ekspor laporan kepatuhan (PDF/CSV)
+      parameters:
+        - { name: format, in: query, schema: { type: string, enum: [pdf, csv], default: pdf } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/pdf: { schema: { type: string, format: binary } }
+            text/csv: { schema: { type: string } }
+
+  # ===================== Audit & Notifications =====================
+  /schools/{schoolId}/audit-logs:
+    parameters: [{ $ref: '#/components/parameters/SchoolIdPath' }]
+    get:
+      tags: [Audit]
+      summary: Log audit + filter
+      parameters:
+        - { name: action, in: query, schema: { type: string } }
+        - { name: entityType, in: query, schema: { type: string } }
+        - { name: from, in: query, schema: { type: string, format: date-time } }
+        - { name: to, in: query, schema: { type: string, format: date-time } }
+        - { $ref: '#/components/parameters/PageParam' }
+        - { $ref: '#/components/parameters/LimitParam' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Paginated'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/AuditLog' }
+  /audit-logs/{id}:
+    parameters: [{ $ref: '#/components/parameters/IdPath' }]
+    get:
+      tags: [Audit]
+      summary: Detail log audit
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuditLog' }
+  /notifications:
+    get:
+      tags: [Notifications]
+      summary: Daftar notifikasi user
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Notification' }
+  /notifications/{id}/read:
+    parameters: [{ $ref: '#/components/parameters/IdPath' }]
+    patch:
+      tags: [Notifications]
+      summary: Tandai notifikasi dibaca
+      responses:
+        '200': { description: OK }
+  /notifications/read-all:
+    post:
+      tags: [Notifications]
+      summary: Tandai semua notifikasi dibaca
+      responses:
+        '204': { description: OK }
+  /notifications/settings:
+    get:
+      tags: [Notifications]
+      summary: Preferensi notifikasi
+      responses:
+        '200': { description: OK }
+    patch:
+      tags: [Notifications]
+      summary: Update preferensi notifikasi
+      responses:
+        '200': { description: OK }
+
+  # ===================== Search =====================
+  /schools/{schoolId}/search:
+    parameters: [{ $ref: '#/components/parameters/SchoolIdPath' }]
+    get:
+      tags: [Search]
+      summary: Full-text search + facet
+      parameters:
+        - { name: q, in: query, required: true, schema: { type: string } }
+        - { name: type, in: query, schema: { type: string } }
+        - { name: year, in: query, schema: { type: string } }
+        - { name: class, in: query, schema: { type: string } }
+        - { $ref: '#/components/parameters/LimitParam' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Document' }
+                  facets: { type: object, additionalProperties: true }
+  /documents/{id}/ocr/reprocess:
+    parameters: [{ $ref: '#/components/parameters/IdPath' }]
+    post:
+      tags: [Search]
+      summary: Ulangi OCR dokumen
+      responses:
+        '202': { description: Queued }
+  /documents/{id}/extracted-text:
+    parameters: [{ $ref: '#/components/parameters/IdPath' }]
+    get:
+      tags: [Search]
+      summary: Hasil OCR dokumen
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  text: { type: string }
+
+  # ===================== Billing =====================
+  /plans:
+    get:
+      tags: [Billing]
+      summary: Daftar paket
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Plan' }
+  /schools/{schoolId}/subscription:
+    parameters: [{ $ref: '#/components/parameters/SchoolIdPath' }]
+    get:
+      tags: [Billing]
+      summary: Status langganan
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Subscription' }
+  /schools/{schoolId}/subscription/checkout:
+    parameters: [{ $ref: '#/components/parameters/SchoolIdPath' }]
+    post:
+      tags: [Billing]
+      summary: Mulai langganan
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [planCode]
+              properties:
+                planCode: { $ref: '#/components/schemas/PlanCode' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  checkoutUrl: { type: string, format: uri }
+  /webhooks/payment:
+    post:
+      tags: [Billing]
+      summary: Callback payment gateway
+      security: []
+      responses:
+        '200': { description: OK }
+
+  # ===================== SSO =====================
+  /auth/sso/{provider}:
+    parameters:
+      - name: provider
+        in: path
+        required: true
+        schema: { type: string, enum: [google_belajar_id] }
+    get:
+      tags: [SSO]
+      summary: Mulai alur OIDC
+      security: []
+      responses:
+        '302': { description: Redirect ke provider }
+  /auth/sso/{provider}/callback:
+    parameters:
+      - name: provider
+        in: path
+        required: true
+        schema: { type: string, enum: [google_belajar_id] }
+    get:
+      tags: [SSO]
+      summary: Callback OIDC
+      security: []
+      parameters:
+        - { name: code, in: query, required: true, schema: { type: string } }
+        - { name: state, in: query, required: true, schema: { type: string } }
+      responses:
+        '302': { description: Redirect ke aplikasi }
+  /schools/{schoolId}/sso:
+    parameters: [{ $ref: '#/components/parameters/SchoolIdPath' }]
+    get:
+      tags: [SSO]
+      summary: Konfigurasi SSO sekolah
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SchoolSsoConfig' }
+    patch:
+      tags: [SSO]
+      summary: Update konfigurasi SSO
+      responses:
+        '200': { description: OK }
+
+  # ===================== Backups =====================
+  /schools/{schoolId}/backups/config:
+    parameters: [{ $ref: '#/components/parameters/SchoolIdPath' }]
+    get:
+      tags: [Backups]
+      summary: Konfigurasi backup
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BackupConfig' }
+    patch:
+      tags: [Backups]
+      summary: Update konfigurasi backup
+      responses:
+        '200': { description: OK }
+  /schools/{schoolId}/backups/run:
+    parameters: [{ $ref: '#/components/parameters/SchoolIdPath' }]
+    post:
+      tags: [Backups]
+      summary: Jalankan backup manual
+      responses:
+        '202':
+          description: Queued
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BackupJob' }
+  /schools/{schoolId}/backups/jobs:
+    parameters: [{ $ref: '#/components/parameters/SchoolIdPath' }]
+    get:
+      tags: [Backups]
+      summary: Riwayat backup
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/BackupJob' }
+
+  # ===================== On-Prem Agents =====================
+  /onprem/agents/register:
+    post:
+      tags: [On-Prem Agents]
+      summary: Registrasi agent on-prem
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [schoolId, name]
+              properties:
+                schoolId: { type: string, format: uuid }
+                name: { type: string }
+                version: { type: string }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OnpremAgent' }
+  /onprem/agents/{id}/heartbeat:
+    parameters: [{ $ref: '#/components/parameters/IdPath' }]
+    post:
+      tags: [On-Prem Agents]
+      summary: Status/heartbeat agent
+      responses:
+        '200': { description: OK }
+  /schools/{schoolId}/onprem/agents:
+    parameters: [{ $ref: '#/components/parameters/SchoolIdPath' }]
+    get:
+      tags: [On-Prem Agents]
+      summary: Daftar agent on-prem sekolah
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/OnpremAgent' }
+
+  # ===================== E-Ijazah =====================
+  /schools/{schoolId}/eijazah/batches:
+    parameters: [{ $ref: '#/components/parameters/SchoolIdPath' }]
+    get:
+      tags: [E-Ijazah]
+      summary: Daftar batch ijazah
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/EijazahBatch' }
+    post:
+      tags: [E-Ijazah]
+      summary: Buat batch ijazah
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [academicYearId]
+              properties:
+                academicYearId: { type: string, format: uuid }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EijazahBatch' }
+  /eijazah/batches/{id}/generate:
+    parameters: [{ $ref: '#/components/parameters/IdPath' }]
+    post:
+      tags: [E-Ijazah]
+      summary: Generate ijazah untuk batch
+      responses:
+        '202': { description: Queued }
+  /eijazah/certificates/{id}/issue:
+    parameters: [{ $ref: '#/components/parameters/IdPath' }]
+    post:
+      tags: [E-Ijazah]
+      summary: Terbitkan + tanda tangan digital
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EijazahCertificate' }
+  /eijazah/certificates/{id}/revoke:
+    parameters: [{ $ref: '#/components/parameters/IdPath' }]
+    post:
+      tags: [E-Ijazah]
+      summary: Cabut ijazah
+      responses:
+        '200': { description: Revoked }
+  /eijazah/certificates/{id}/pdf:
+    parameters: [{ $ref: '#/components/parameters/IdPath' }]
+    get:
+      tags: [E-Ijazah]
+      summary: Unduh ijazah PDF
+      responses:
+        '200':
+          description: OK
+          content:
+            application/pdf: { schema: { type: string, format: binary } }
+  /verify/{serial}:
+    parameters:
+      - name: serial
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [E-Ijazah]
+      summary: Verifikasi publik ijazah
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  valid: { type: boolean }
+                  status: { $ref: '#/components/schemas/EijazahStatus' }
+                  studentName: { type: string }
+                  schoolName: { type: string }
+                  issuedAt: { type: string, format: date-time, nullable: true }
+
+  # ===================== E-Raport =====================
+  /schools/{schoolId}/students:
+    parameters: [{ $ref: '#/components/parameters/SchoolIdPath' }]
+    get:
+      tags: [E-Raport]
+      summary: Daftar siswa
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Student' }
+    post:
+      tags: [E-Raport]
+      summary: Tambah siswa
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Student' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Student' }
+  /schools/{schoolId}/students/import:
+    parameters: [{ $ref: '#/components/parameters/SchoolIdPath' }]
+    post:
+      tags: [E-Raport]
+      summary: Impor siswa via CSV
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file: { type: string, format: binary }
+      responses:
+        '202': { description: Accepted }
+  /students/{id}:
+    parameters: [{ $ref: '#/components/parameters/IdPath' }]
+    get:
+      tags: [E-Raport]
+      summary: Detail siswa
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Student' }
+    patch:
+      tags: [E-Raport]
+      summary: Update siswa
+      responses:
+        '200': { description: OK }
+    delete:
+      tags: [E-Raport]
+      summary: Hapus siswa
+      responses:
+        '204': { description: Deleted }
+  /schools/{schoolId}/subjects:
+    parameters: [{ $ref: '#/components/parameters/SchoolIdPath' }]
+    get:
+      tags: [E-Raport]
+      summary: Daftar mata pelajaran
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Subject' }
+    post:
+      tags: [E-Raport]
+      summary: Tambah mata pelajaran
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Subject' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Subject' }
+  /classrooms/{id}/grades:
+    parameters: [{ $ref: '#/components/parameters/IdPath' }]
+    get:
+      tags: [E-Raport]
+      summary: Daftar nilai kelas
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Grade' }
+    post:
+      tags: [E-Raport]
+      summary: Input nilai
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Grade' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Grade' }
+  /classrooms/{id}/report-cards/generate:
+    parameters: [{ $ref: '#/components/parameters/IdPath' }]
+    post:
+      tags: [E-Raport]
+      summary: Generate raport kelas
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [semesterId]
+              properties:
+                semesterId: { type: string, format: uuid }
+      responses:
+        '202': { description: Queued }
+  /report-cards/{id}/pdf:
+    parameters: [{ $ref: '#/components/parameters/IdPath' }]
+    get:
+      tags: [E-Raport]
+      summary: Unduh raport PDF
+      responses:
+        '200':
+          description: OK
+          content:
+            application/pdf: { schema: { type: string, format: binary } }
+
+  # ===================== Finance =====================
+  /schools/{schoolId}/finance/archives:
+    parameters: [{ $ref: '#/components/parameters/SchoolIdPath' }]
+    get:
+      tags: [Finance]
+      summary: Daftar arsip keuangan
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/FinanceArchive' }
+    post:
+      tags: [Finance]
+      summary: Tambah arsip keuangan
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/FinanceArchive' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FinanceArchive' }
+  /schools/{schoolId}/finance/summary:
+    parameters: [{ $ref: '#/components/parameters/SchoolIdPath' }]
+    get:
+      tags: [Finance]
+      summary: Ringkasan keuangan per tahun ajaran
+      responses:
+        '200': { description: OK }
+  /schools/{schoolId}/finance/export:
+    parameters: [{ $ref: '#/components/parameters/SchoolIdPath' }]
+    get:
+      tags: [Finance]
+      summary: Paket ekspor audit (ZIP)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/zip: { schema: { type: string, format: binary } }
+
+  # ===================== Analytics =====================
+  /analytics/school:
+    get:
+      tags: [Analytics]
+      summary: Metrik sekolah
+      parameters:
+        - { name: schoolId, in: query, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: OK }
+  /analytics/network:
+    get:
+      tags: [Analytics]
+      summary: Metrik lintas sekolah (yayasan/dinas)
+      responses:
+        '200': { description: OK }
+
+  # ===================== Integrations =====================
+  /schools/{schoolId}/api-keys:
+    parameters: [{ $ref: '#/components/parameters/SchoolIdPath' }]
+    get:
+      tags: [Integrations]
+      summary: Daftar API key
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ApiKey' }
+    post:
+      tags: [Integrations]
+      summary: Buat API key
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, scopes]
+              properties:
+                name: { type: string }
+                scopes:
+                  type: array
+                  items: { type: string }
+      responses:
+        '201': { description: Created }
+  /api-keys/{id}:
+    parameters: [{ $ref: '#/components/parameters/IdPath' }]
+    delete:
+      tags: [Integrations]
+      summary: Cabut API key
+      responses:
+        '204': { description: Revoked }
+  /schools/{schoolId}/webhooks:
+    parameters: [{ $ref: '#/components/parameters/SchoolIdPath' }]
+    get:
+      tags: [Integrations]
+      summary: Daftar webhook
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Webhook' }
+    post:
+      tags: [Integrations]
+      summary: Buat webhook
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [url, events]
+              properties:
+                url: { type: string, format: uri }
+                events:
+                  type: array
+                  items: { type: string }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Webhook' }
+  /integrations/dapodik/sync:
+    post:
+      tags: [Integrations]
+      summary: Sinkronisasi Dapodik
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [schoolId]
+              properties:
+                schoolId: { type: string, format: uuid }
+      responses:
+        '202': { description: Accepted }
+  /integrations/dapodik/syncs:
+    get:
+      tags: [Integrations]
+      summary: Riwayat sinkronisasi Dapodik
+      parameters:
+        - { name: schoolId, in: query, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: OK }
+
+  # ===================== System =====================
+  /health:
+    get:
+      tags: [System]
+      summary: Health check
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: ok }
+                  uptime: { type: number }
+  /metrics:
+    get:
+      tags: [System]
+      summary: Metrik internal
+      responses:
+        '200': { description: OK }
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: arsip_token
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    IdPath:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    SchoolIdPath:
+      name: schoolId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    MembershipIdPath:
+      name: membershipId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    VersionIdPath:
+      name: versionId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    SessionIdPath:
+      name: sessionId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    PageParam:
+      name: page
+      in: query
+      schema: { type: integer, minimum: 1, default: 1 }
+    LimitParam:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+
+  responses:
+    BadRequest:
+      description: Request tidak valid
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Unauthorized:
+      description: Belum terautentikasi
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Forbidden:
+      description: Tidak punya izin
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NotFound:
+      description: Tidak ditemukan
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    UserResponse:
+      description: OK
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/User' }
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code: { type: string }
+            message: { type: string }
+            details: { type: object, additionalProperties: true, nullable: true }
+    Paginated:
+      type: object
+      properties:
+        data:
+          type: array
+          items: {}
+        meta:
+          type: object
+          properties:
+            page: { type: integer }
+            limit: { type: integer }
+            total: { type: integer }
+
+    UserRole:
+      type: string
+      enum: [headmaster, head_of_administration, teacher, operator, auditor]
+    MembershipStatus:
+      type: string
+      enum: [invited, active, suspended]
+    AcademicTerm:
+      type: string
+      enum: [odd, even]
+    DocStatus:
+      type: string
+      enum: [active, archived, pending_deletion, deleted]
+    RetentionType:
+      type: string
+      enum: [financial_5y, academic_permanent, custom]
+    PlanCode:
+      type: string
+      enum: [trial, basic, pro]
+    EijazahStatus:
+      type: string
+      enum: [draft, issued, revoked]
+    StudentStatus:
+      type: string
+      enum: [active, graduated, transferred, inactive]
+
+    Plan:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        code: { $ref: '#/components/schemas/PlanCode' }
+        name: { type: string }
+        priceYearlyIdr: { type: integer }
+        storageQuotaBytes: { type: integer, format: int64 }
+        maxUsers: { type: integer }
+        features: { type: object, additionalProperties: true, nullable: true }
+        isActive: { type: boolean }
+
+    School:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        slug: { type: string }
+        npsn: { type: string, nullable: true }
+        address: { type: string, nullable: true }
+        city: { type: string, nullable: true }
+        province: { type: string, nullable: true }
+        phone: { type: string, nullable: true }
+        email: { type: string, nullable: true }
+        logoUrl: { type: string, nullable: true }
+        planCode: { $ref: '#/components/schemas/PlanCode' }
+        storageQuotaBytes: { type: integer, format: int64 }
+        storageUsedBytes: { type: integer, format: int64 }
+        maxFileSizeBytes: { type: integer, format: int64 }
+        status: { type: string, enum: [active, suspended] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    SchoolUpdate:
+      type: object
+      properties:
+        name: { type: string }
+        npsn: { type: string }
+        address: { type: string }
+        city: { type: string }
+        province: { type: string }
+        phone: { type: string }
+        email: { type: string }
+        logoUrl: { type: string }
+
+    Subscription:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        schoolId: { type: string, format: uuid }
+        planCode: { $ref: '#/components/schemas/PlanCode' }
+        status: { type: string }
+        startedAt: { type: string, format: date-time }
+        currentPeriodEnd: { type: string, format: date-time }
+        seats: { type: integer, nullable: true }
+
+    User:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        name: { type: string }
+        avatarUrl: { type: string, nullable: true }
+        phone: { type: string, nullable: true }
+        isEmailVerified: { type: boolean }
+        lastLoginAt: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time }
+
+    Membership:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        schoolId: { type: string, format: uuid }
+        userId: { type: string, format: uuid }
+        role: { $ref: '#/components/schemas/UserRole' }
+        status: { $ref: '#/components/schemas/MembershipStatus' }
+        joinedAt: { type: string, format: date-time, nullable: true }
+
+    SKDocument:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        schoolId: { type: string, format: uuid }
+        title: { type: string }
+        number: { type: string, nullable: true }
+        issuedDate: { type: string, format: date }
+        storageKey: { type: string }
+        isActive: { type: boolean }
+
+    AcademicYear:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        schoolId: { type: string, format: uuid }
+        name: { type: string }
+        startDate: { type: string, format: date }
+        endDate: { type: string, format: date }
+        isActive: { type: boolean }
+
+    Semester:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        academicYearId: { type: string, format: uuid }
+        name: { type: string }
+        term: { $ref: '#/components/schemas/AcademicTerm' }
+        startDate: { type: string, format: date, nullable: true }
+        endDate: { type: string, format: date, nullable: true }
+        isActive: { type: boolean }
+
+    Classroom:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        schoolId: { type: string, format: uuid }
+        academicYearId: { type: string, format: uuid }
+        name: { type: string }
+        gradeLevel: { type: integer }
+        homeroomTeacherMembershipId: { type: string, format: uuid, nullable: true }
+
+    DocumentType:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        schoolId: { type: string, format: uuid, nullable: true }
+        name: { type: string }
+        code: { type: string }
+        description: { type: string, nullable: true }
+        retentionType: { $ref: '#/components/schemas/RetentionType' }
+        retentionMonths: { type: integer, nullable: true }
+        allowedExtensions:
+          type: array
+          items: { type: string }
+        maxSizeBytes: { type: integer, format: int64, nullable: true }
+        requiresLegalHold: { type: boolean }
+        isSystem: { type: boolean }
+    DocumentTypeInput:
+      type: object
+      required: [name, code, retentionType, allowedExtensions]
+      properties:
+        name: { type: string }
+        code: { type: string }
+        description: { type: string }
+        retentionType: { $ref: '#/components/schemas/RetentionType' }
+        retentionMonths: { type: integer, nullable: true }
+        allowedExtensions:
+          type: array
+          items: { type: string }
+        maxSizeBytes: { type: integer, format: int64 }
+        requiresLegalHold: { type: boolean }
+
+    Folder:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        schoolId: { type: string, format: uuid }
+        parentId: { type: string, format: uuid, nullable: true }
+        name: { type: string }
+        academicYearId: { type: string, format: uuid, nullable: true }
+        semesterId: { type: string, format: uuid, nullable: true }
+        classroomId: { type: string, format: uuid, nullable: true }
+        documentTypeId: { type: string, format: uuid, nullable: true }
+        path: { type: string }
+
+    Document:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        schoolId: { type: string, format: uuid }
+        folderId: { type: string, format: uuid, nullable: true }
+        documentTypeId: { type: string, format: uuid, nullable: true }
+        title: { type: string }
+        description: { type: string, nullable: true }
+        ownerMembershipId: { type: string, format: uuid, nullable: true }
+        visibility: { type: string, enum: [school, classroom, private] }
+        tags:
+          type: array
+          items: { type: string }
+        retentionType: { $ref: '#/components/schemas/RetentionType' }
+        retentionExpiresAt: { type: string, format: date-time, nullable: true }
+        status: { $ref: '#/components/schemas/DocStatus' }
+        currentVersionId: { type: string, format: uuid, nullable: true }
+        isLegalHold: { type: boolean }
+        createdAt: { type: string, format: date-time }
+    DocumentInput:
+      type: object
+      required: [schoolId, title, retentionType]
+      properties:
+        schoolId: { type: string, format: uuid }
+        folderId: { type: string, format: uuid }
+        documentTypeId: { type: string, format: uuid }
+        title: { type: string }
+        description: { type: string }
+        visibility: { type: string, enum: [school, classroom, private] }
+        tags:
+          type: array
+          items: { type: string }
+        retentionType: { $ref: '#/components/schemas/RetentionType' }
+    DocumentUpdate:
+      type: object
+      properties:
+        title: { type: string }
+        description: { type: string }
+        folderId: { type: string, format: uuid }
+        documentTypeId: { type: string, format: uuid }
+        visibility: { type: string, enum: [school, classroom, private] }
+        tags:
+          type: array
+          items: { type: string }
+
+    DocumentVersion:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        documentId: { type: string, format: uuid }
+        versionNumber: { type: integer }
+        storageKey: { type: string }
+        fileName: { type: string }
+        mimeType: { type: string }
+        extension: { type: string }
+        sizeBytes: { type: integer, format: int64 }
+        contentHash: { type: string }
+        scanStatus: { type: string, enum: [pending, clean, infected, error] }
+        ocrStatus: { type: string, enum: [pending, done, failed] }
+        createdAt: { type: string, format: date-time }
+
+    UploadSession:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        schoolId: { type: string, format: uuid }
+        membershipId: { type: string, format: uuid, nullable: true }
+        fileName: { type: string }
+        mimeType: { type: string }
+        sizeBytes: { type: integer, format: int64 }
+        status: { type: string, enum: [initiated, completed, aborted, error] }
+        documentId: { type: string, format: uuid, nullable: true }
+
+    PurgeQueueItem:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        schoolId: { type: string, format: uuid }
+        documentId: { type: string, format: uuid }
+        reason: { type: string, enum: [retention_expired, duplicate, non_compliant, manual] }
+        scheduledPurgeAt: { type: string, format: date-time }
+        status: { type: string }
+        triggeredBy: { type: string, enum: [auto, manual] }
+
+    RetentionRule:
+      type: object
+      required: [action]
+      properties:
+        id: { type: string, format: uuid }
+        schoolId: { type: string, format: uuid }
+        documentTypeId: { type: string, format: uuid, nullable: true }
+        retentionMonths: { type: integer, nullable: true }
+        action: { type: string, enum: [purge, archive] }
+        notifyDaysBefore:
+          type: array
+          items: { type: integer }
+          default: [30, 7, 1]
+        requiresApproval: { type: boolean }
+        isActive: { type: boolean }
+
+    ShareLink:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        schoolId: { type: string, format: uuid }
+        documentId: { type: string, format: uuid }
+        token: { type: string }
+        expiresAt: { type: string, format: date-time, nullable: true }
+        allowDownload: { type: boolean }
+        maxUses: { type: integer, nullable: true }
+        useCount: { type: integer }
+        revokedAt: { type: string, format: date-time, nullable: true }
+
+    ComplianceScore:
+      type: object
+      properties:
+        score: { type: number }
+        breakdown: { type: object, additionalProperties: true, nullable: true }
+        computedAt: { type: string, format: date-time }
+
+    AuditLog:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        schoolId: { type: string, format: uuid, nullable: true }
+        actorUserId: { type: string, format: uuid, nullable: true }
+        actorMembershipId: { type: string, format: uuid, nullable: true }
+        action: { type: string }
+        entityType: { type: string }
+        entityId: { type: string, format: uuid, nullable: true }
+        metadata: { type: object, additionalProperties: true, nullable: true }
+        ipAddress: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+
+    Notification:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        schoolId: { type: string, format: uuid }
+        userId: { type: string, format: uuid }
+        type: { type: string }
+        title: { type: string }
+        body: { type: string }
+        data: { type: object, additionalProperties: true, nullable: true }
+        isRead: { type: boolean }
+        createdAt: { type: string, format: date-time }
+
+    SchoolSsoConfig:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        schoolId: { type: string, format: uuid }
+        provider: { type: string, enum: [google_belajar_id] }
+        domain: { type: string }
+        clientId: { type: string }
+        autoJoin: { type: boolean }
+        defaultRole: { $ref: '#/components/schemas/UserRole' }
+        isActive: { type: boolean }
+
+    BackupConfig:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        schoolId: { type: string, format: uuid }
+        target: { type: string, enum: [cloud, onprem] }
+        scheduleCron: { type: string }
+        scope: { type: string }
+        retentionDays: { type: integer }
+        isActive: { type: boolean }
+    BackupJob:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        schoolId: { type: string, format: uuid }
+        status: { type: string, enum: [queued, running, success, failed] }
+        startedAt: { type: string, format: date-time, nullable: true }
+        finishedAt: { type: string, format: date-time, nullable: true }
+        sizeBytes: { type: integer, format: int64, nullable: true }
+        checksum: { type: string, nullable: true }
+        error: { type: string, nullable: true }
+
+    OnpremAgent:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        schoolId: { type: string, format: uuid }
+        name: { type: string }
+        agentToken: { type: string }
+        version: { type: string, nullable: true }
+        lastSeenAt: { type: string, format: date-time, nullable: true }
+        status: { type: string, enum: [online, offline, error] }
+
+    EijazahBatch:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        schoolId: { type: string, format: uuid }
+        academicYearId: { type: string, format: uuid }
+        status: { type: string }
+        createdAt: { type: string, format: date-time }
+    EijazahCertificate:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        batchId: { type: string, format: uuid }
+        studentId: { type: string, format: uuid }
+        serialNumber: { type: string }
+        contentHash: { type: string }
+        qrPayload: { type: string, nullable: true }
+        status: { $ref: '#/components/schemas/EijazahStatus' }
+        issuedAt: { type: string, format: date-time, nullable: true }
+
+    Student:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        schoolId: { type: string, format: uuid }
+        nisn: { type: string, nullable: true }
+        nis: { type: string, nullable: true }
+        fullName: { type: string }
+        gender: { type: string, nullable: true }
+        birthDate: { type: string, format: date, nullable: true }
+        status: { $ref: '#/components/schemas/StudentStatus' }
+    Subject:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        schoolId: { type: string, format: uuid }
+        name: { type: string }
+        code: { type: string }
+    Grade:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        studentId: { type: string, format: uuid }
+        classroomId: { type: string, format: uuid }
+        subjectId: { type: string, format: uuid }
+        term: { $ref: '#/components/schemas/AcademicTerm' }
+        score: { type: number }
+        note: { type: string, nullable: true }
+    ReportCard:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        studentId: { type: string, format: uuid }
+        classroomId: { type: string, format: uuid }
+        academicYearId: { type: string, format: uuid }
+        semesterId: { type: string, format: uuid }
+        status: { type: string }
+        storageKey: { type: string, nullable: true }
+        generatedAt: { type: string, format: date-time, nullable: true }
+
+    FinanceArchive:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        schoolId: { type: string, format: uuid }
+        academicYearId: { type: string, format: uuid, nullable: true }
+        category: { type: string }
+        amountIdr: { type: number, nullable: true }
+        documentId: { type: string, format: uuid, nullable: true }
+
+    ApiKey:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        schoolId: { type: string, format: uuid }
+        name: { type: string }
+        scopes:
+          type: array
+          items: { type: string }
+        lastUsedAt: { type: string, format: date-time, nullable: true }
+        revokedAt: { type: string, format: date-time, nullable: true }
+    Webhook:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        schoolId: { type: string, format: uuid }
+        url: { type: string, format: uri }
+        events:
+          type: array
+          items: { type: string }
+        isActive: { type: boolean }

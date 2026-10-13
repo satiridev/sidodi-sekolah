@@ -1,0 +1,1059 @@
+// Prisma schema — SaaS Arsip Digital Sekolah
+// Mencakup Tahap 1 (MVP) + Tahap 2 (Fase Lanjutan).
+// Acuan: spec-tahap-1.md, spec-tahap-2.md, step1-data-structure.md, step2-data-structure.md
+//
+// Multi-tenancy: row-level via school_id.
+// Catatan: kolom tsvector (full-text search) ditandai Unsupported dan diisi via worker/trigger.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// ENUMS
+// ============================================================
+
+enum UserRole {
+  headmaster
+  head_of_administration
+  teacher
+  operator
+  auditor
+
+  @@map("user_role")
+}
+
+enum MembershipStatus {
+  invited
+  active
+  suspended
+
+  @@map("membership_status")
+}
+
+enum AcademicTerm {
+  odd
+  even
+
+  @@map("academic_term")
+}
+
+enum DocStatus {
+  active
+  archived
+  pending_deletion
+  deleted
+
+  @@map("doc_status")
+}
+
+enum RetentionType {
+  financial_5y
+  academic_permanent
+  custom
+
+  @@map("retention_type")
+}
+
+enum ScanStatus {
+  pending
+  clean
+  infected
+  error
+
+  @@map("scan_status")
+}
+
+enum PurgeReason {
+  retention_expired
+  duplicate
+  non_compliant
+  manual
+
+  @@map("purge_reason")
+}
+
+enum AuditAction {
+  create
+  update
+  delete
+  view
+  download
+  share
+  login
+  permission_change
+  purge
+  restore
+  legal_hold
+
+  @@map("audit_action")
+}
+
+enum PlanCode {
+  trial
+  basic
+  pro
+
+  @@map("plan_code")
+}
+
+enum SchoolStatus {
+  active
+  suspended
+
+  @@map("school_status")
+}
+
+enum DocumentVisibility {
+  school
+  classroom
+  private
+
+  @@map("document_visibility")
+}
+
+enum UploadStatus {
+  initiated
+  completed
+  aborted
+  error
+
+  @@map("upload_status")
+}
+
+// --- Enums Tahap 2 ---
+
+enum SsoProvider {
+  google_belajar_id
+
+  @@map("sso_provider")
+}
+
+enum BackupTarget {
+  cloud
+  onprem
+
+  @@map("backup_target")
+}
+
+enum BackupStatus {
+  queued
+  running
+  success
+  failed
+
+  @@map("backup_status")
+}
+
+enum AgentStatus {
+  online
+  offline
+  error
+
+  @@map("agent_status")
+}
+
+enum OcrStatus {
+  pending
+  done
+  failed
+
+  @@map("ocr_status")
+}
+
+enum RetentionAction {
+  purge
+  archive
+
+  @@map("retention_action")
+}
+
+enum PurgeTrigger {
+  auto
+  manual
+
+  @@map("purge_trigger")
+}
+
+enum EijazahStatus {
+  draft
+  issued
+  revoked
+
+  @@map("eijazah_status")
+}
+
+enum StudentStatus {
+  active
+  graduated
+  transferred
+  inactive
+
+  @@map("student_status")
+}
+
+enum WebhookStatus {
+  pending
+  success
+  failed
+
+  @@map("webhook_status")
+}
+
+// ============================================================
+// TAHAP 1 — TENANT & BILLING
+// ============================================================
+
+model Plan {
+  id                String   @id @default(uuid()) @db.Uuid
+  code              PlanCode @unique
+  name              String
+  priceYearlyIdr    Int      @map("price_yearly_idr")
+  storageQuotaBytes BigInt   @map("storage_quota_bytes")
+  maxUsers          Int      @map("max_users")
+  features          Json?
+  isActive          Boolean  @default(true) @map("is_active")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@map("plans")
+}
+
+model School {
+  id                String       @id @default(uuid()) @db.Uuid
+  name              String
+  slug              String       @unique
+  npsn              String?
+  address           String?
+  city              String?
+  province          String?
+  phone             String?
+  email             String?
+  logoUrl           String?      @map("logo_url")
+  planCode          PlanCode     @default(trial) @map("plan_code")
+  storageQuotaBytes BigInt       @map("storage_quota_bytes")
+  storageUsedBytes  BigInt       @default(0) @map("storage_used_bytes")
+  maxFileSizeBytes  BigInt       @default(104857600) @map("max_file_size_bytes")
+  status            SchoolStatus @default(active)
+  createdAt         DateTime     @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime     @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt         DateTime?    @map("deleted_at") @db.Timestamptz
+
+  subscriptions       Subscription[]
+  memberships         Membership[]
+  skDocuments         SKDocument[]
+  academicYears       AcademicYear[]
+  classrooms          Classroom[]
+  documentTypes       DocumentType[]
+  folders             Folder[]
+  documents           Document[]
+  uploadSessions      UploadSession[]
+  shareLinks          ShareLink[]
+  purgeQueue          PurgeQueue[]
+  auditLogs           AuditLog[]
+  notifications       Notification[]
+  complianceSnapshots ComplianceSnapshot[]
+  ssoConfigs          SchoolSsoConfig[]
+  backupConfigs       BackupConfig[]
+  backupJobs          BackupJob[]
+  onpremAgents        OnpremAgent[]
+  retentionRules      RetentionRule[]
+  students            Student[]
+  subjects            Subject[]
+  eijazahBatches      EijazahBatch[]
+  financeArchives     FinanceArchive[]
+  apiKeys             ApiKey[]
+  webhooks            Webhook[]
+  dapodikSyncs        DapodikSync[]
+
+  @@map("schools")
+}
+
+model Subscription {
+  id               String   @id @default(uuid()) @db.Uuid
+  schoolId         String   @map("school_id") @db.Uuid
+  planCode         PlanCode @map("plan_code")
+  status           String
+  startedAt        DateTime @map("started_at") @db.Timestamptz
+  currentPeriodEnd DateTime @map("current_period_end") @db.Timestamptz
+  seats            Int?
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  school School @relation(fields: [schoolId], references: [id])
+
+  @@index([schoolId])
+  @@map("subscriptions")
+}
+
+// ============================================================
+// TAHAP 1 — USER & KEANGGOTAAN
+// ============================================================
+
+model User {
+  id              String    @id @default(uuid()) @db.Uuid
+  email           String    @unique
+  passwordHash    String?   @map("password_hash")
+  name            String
+  avatarUrl       String?   @map("avatar_url")
+  phone           String?
+  isEmailVerified Boolean   @default(false) @map("is_email_verified")
+  lastLoginAt     DateTime? @map("last_login_at") @db.Timestamptz
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt       DateTime? @map("deleted_at") @db.Timestamptz
+
+  memberships   Membership[]
+  identities    UserIdentity[]
+  notifications Notification[]
+  auditLogs     AuditLog[]     @relation("AuditActorUser")
+
+  @@map("users")
+}
+
+model Membership {
+  id                  String           @id @default(uuid()) @db.Uuid
+  schoolId            String           @map("school_id") @db.Uuid
+  userId              String           @map("user_id") @db.Uuid
+  role                UserRole
+  status              MembershipStatus @default(invited)
+  invitedBy           String?          @map("invited_by") @db.Uuid
+  invitationToken     String?          @map("invitation_token")
+  invitationExpiresAt DateTime?        @map("invitation_expires_at") @db.Timestamptz
+  joinedAt            DateTime?        @map("joined_at") @db.Timestamptz
+  createdAt           DateTime         @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt           DateTime         @updatedAt @map("updated_at") @db.Timestamptz
+
+  school   School @relation(fields: [schoolId], references: [id])
+  user     User   @relation(fields: [userId], references: [id])
+
+  skDocuments        SKDocument[]      @relation("SKUploader")
+  ownedDocuments     Document[]        @relation("DocumentOwner")
+  uploadedVersions   DocumentVersion[] @relation("VersionUploader")
+  createdShareLinks  ShareLink[]       @relation("ShareLinkCreator")
+  uploadSessions     UploadSession[]
+  homeroomClassrooms Classroom[]       @relation("HomeroomTeacher")
+  auditLogs          AuditLog[]        @relation("AuditActorMembership")
+
+  @@unique([schoolId, userId])
+  @@index([schoolId])
+  @@map("memberships")
+}
+
+model SKDocument {
+  id                     String    @id @default(uuid()) @db.Uuid
+  schoolId               String    @map("school_id") @db.Uuid
+  title                  String
+  number                 String?
+  issuedDate             DateTime  @map("issued_date") @db.Date
+  storageKey             String    @map("storage_key")
+  uploadedByMembershipId String?   @map("uploaded_by_membership_id") @db.Uuid
+  isActive               Boolean   @default(true) @map("is_active")
+  createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  school     School      @relation(fields: [schoolId], references: [id])
+  uploadedBy Membership? @relation("SKUploader", fields: [uploadedByMembershipId], references: [id])
+
+  @@index([schoolId])
+  @@map("sk_documents")
+}
+
+// ============================================================
+// TAHAP 1 — STRUKTUR AKADEMIK & KLASIFIKASI
+// ============================================================
+
+model AcademicYear {
+  id        String   @id @default(uuid()) @db.Uuid
+  schoolId  String   @map("school_id") @db.Uuid
+  name      String
+  startDate DateTime @map("start_date") @db.Date
+  endDate   DateTime @map("end_date") @db.Date
+  isActive  Boolean  @default(false) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  school     School @relation(fields: [schoolId], references: [id])
+  semesters  Semester[]
+  classrooms Classroom[]
+  folders    Folder[]
+
+  eijazahBatches     EijazahBatch[]
+  financeArchives    FinanceArchive[]
+  reportCards        ReportCard[]
+  studentClassrooms  StudentClassroom[]
+
+  @@unique([schoolId, name])
+  @@map("academic_years")
+}
+
+model Semester {
+  id             String       @id @default(uuid()) @db.Uuid
+  academicYearId String       @map("academic_year_id") @db.Uuid
+  name           String
+  term           AcademicTerm
+  startDate      DateTime?    @map("start_date") @db.Date
+  endDate        DateTime?    @map("end_date") @db.Date
+  isActive       Boolean      @default(false) @map("is_active")
+
+  academicYear AcademicYear @relation(fields: [academicYearId], references: [id])
+  folders      Folder[]
+  reportCards  ReportCard[]
+
+  @@map("semesters")
+}
+
+model Classroom {
+  id                          String   @id @default(uuid()) @db.Uuid
+  schoolId                    String   @map("school_id") @db.Uuid
+  academicYearId              String   @map("academic_year_id") @db.Uuid
+  name                        String
+  gradeLevel                  Int      @map("grade_level")
+  homeroomTeacherMembershipId String?  @map("homeroom_teacher_membership_id") @db.Uuid
+  createdAt                   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  school          School       @relation(fields: [schoolId], references: [id])
+  academicYear    AcademicYear @relation(fields: [academicYearId], references: [id])
+  homeroomTeacher Membership?  @relation("HomeroomTeacher", fields: [homeroomTeacherMembershipId], references: [id])
+  folders         Folder[]
+
+  studentClassrooms StudentClassroom[]
+  grades            Grade[]
+  reportCards       ReportCard[]
+
+  @@unique([schoolId, academicYearId, name])
+  @@map("classrooms")
+}
+
+model DocumentType {
+  id                String        @id @default(uuid()) @db.Uuid
+  schoolId          String?       @map("school_id") @db.Uuid
+  name              String
+  code              String
+  description       String?
+  retentionType     RetentionType @map("retention_type")
+  retentionMonths   Int?          @map("retention_months")
+  allowedExtensions String[]      @map("allowed_extensions")
+  maxSizeBytes      BigInt?       @map("max_size_bytes")
+  requiresLegalHold Boolean       @default(false) @map("requires_legal_hold")
+  isSystem          Boolean       @default(false) @map("is_system")
+  createdAt         DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime      @updatedAt @map("updated_at") @db.Timestamptz
+
+  school         School?         @relation(fields: [schoolId], references: [id])
+  folders        Folder[]
+  documents      Document[]
+  retentionRules RetentionRule[]
+
+  @@index([schoolId])
+  @@map("document_types")
+}
+
+// ============================================================
+// TAHAP 1 — FOLDER & DOKUMEN
+// ============================================================
+
+model Folder {
+  id             String   @id @default(uuid()) @db.Uuid
+  schoolId       String   @map("school_id") @db.Uuid
+  parentId       String?  @map("parent_id") @db.Uuid
+  name           String
+  academicYearId String?  @map("academic_year_id") @db.Uuid
+  semesterId     String?  @map("semester_id") @db.Uuid
+  classroomId    String?  @map("classroom_id") @db.Uuid
+  documentTypeId String?  @map("document_type_id") @db.Uuid
+  path           String
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  school       School        @relation(fields: [schoolId], references: [id])
+  parent       Folder?       @relation("FolderHierarchy", fields: [parentId], references: [id])
+  children     Folder[]      @relation("FolderHierarchy")
+  academicYear AcademicYear? @relation(fields: [academicYearId], references: [id])
+  semester     Semester?     @relation(fields: [semesterId], references: [id])
+  classroom    Classroom?    @relation(fields: [classroomId], references: [id])
+  documentType DocumentType? @relation(fields: [documentTypeId], references: [id])
+  documents    Document[]
+
+  @@unique([schoolId, parentId, name])
+  @@index([schoolId])
+  @@map("folders")
+}
+
+model Document {
+  id                 String               @id @default(uuid()) @db.Uuid
+  schoolId           String               @map("school_id") @db.Uuid
+  folderId           String?              @map("folder_id") @db.Uuid
+  documentTypeId     String?              @map("document_type_id") @db.Uuid
+  title              String
+  description        String?
+  ownerMembershipId  String?              @map("owner_membership_id") @db.Uuid
+  visibility         DocumentVisibility   @default(school)
+  tags               String[]
+  retentionType      RetentionType        @map("retention_type")
+  retentionExpiresAt DateTime?            @map("retention_expires_at") @db.Timestamptz
+  status             DocStatus            @default(active)
+  currentVersionId   String?              @unique @map("current_version_id") @db.Uuid
+  isLegalHold        Boolean              @default(false) @map("is_legal_hold")
+  legalHoldReason    String?              @map("legal_hold_reason")
+  legalHoldBy        String?              @map("legal_hold_by") @db.Uuid
+  legalHoldAt        DateTime?            @map("legal_hold_at") @db.Timestamptz
+  createdAt          DateTime             @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt          DateTime             @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt          DateTime?            @map("deleted_at") @db.Timestamptz
+  purgedAt           DateTime?            @map("purged_at") @db.Timestamptz
+
+  school         School          @relation(fields: [schoolId], references: [id])
+  folder         Folder?         @relation(fields: [folderId], references: [id])
+  documentType   DocumentType?   @relation(fields: [documentTypeId], references: [id])
+  owner          Membership?     @relation("DocumentOwner", fields: [ownerMembershipId], references: [id])
+  currentVersion DocumentVersion? @relation("DocumentCurrentVersion", fields: [currentVersionId], references: [id])
+  versions       DocumentVersion[] @relation("DocumentVersions")
+
+  purgeQueue      PurgeQueue[]
+  shareLinks      ShareLink[]
+  financeArchives FinanceArchive[]
+
+  @@index([schoolId, status])
+  @@index([schoolId, folderId])
+  @@index([schoolId, retentionExpiresAt])
+  @@map("documents")
+}
+
+model DocumentVersion {
+  id                     String     @id @default(uuid()) @db.Uuid
+  documentId             String     @map("document_id") @db.Uuid
+  versionNumber          Int        @map("version_number")
+  storageKey             String     @map("storage_key")
+  fileName               String     @map("file_name")
+  mimeType               String     @map("mime_type")
+  extension              String
+  sizeBytes              BigInt     @map("size_bytes")
+  contentHash            String     @map("content_hash")
+  scanStatus             ScanStatus @default(pending) @map("scan_status")
+  uploadedByMembershipId String?    @map("uploaded_by_membership_id") @db.Uuid
+  ocrText                String?    @map("ocr_text")
+  ocrStatus              OcrStatus  @default(pending) @map("ocr_status")
+  searchVector           Unsupported("tsvector")? @map("search_vector")
+  createdAt              DateTime   @default(now()) @map("created_at") @db.Timestamptz
+
+  document           Document    @relation("DocumentVersions", fields: [documentId], references: [id])
+  uploadedBy         Membership? @relation("VersionUploader", fields: [uploadedByMembershipId], references: [id])
+  currentForDocument Document?   @relation("DocumentCurrentVersion")
+  ocrJobs            OcrJob[]
+
+  @@unique([documentId, versionNumber])
+  @@index([contentHash])
+  @@map("document_versions")
+}
+
+model UploadSession {
+  id           String       @id @default(uuid()) @db.Uuid
+  schoolId     String       @map("school_id") @db.Uuid
+  membershipId String?      @map("membership_id") @db.Uuid
+  s3UploadId   String?      @map("s3_upload_id")
+  fileName     String       @map("file_name")
+  mimeType     String       @map("mime_type")
+  sizeBytes    BigInt       @map("size_bytes")
+  status       UploadStatus @default(initiated)
+  documentId   String?      @map("document_id") @db.Uuid
+  folderId     String?      @map("folder_id") @db.Uuid
+  documentTypeId String?    @map("document_type_id") @db.Uuid
+  title        String?
+  createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime     @updatedAt @map("updated_at") @db.Timestamptz
+
+  school     School      @relation(fields: [schoolId], references: [id])
+  membership Membership? @relation(fields: [membershipId], references: [id])
+
+  @@index([schoolId])
+  @@map("upload_sessions")
+}
+
+// ============================================================
+// TAHAP 1 — RETENSI, PEMBERSIHAN & BERBAGI
+// ============================================================
+
+model PurgeQueue {
+  id               String       @id @default(uuid()) @db.Uuid
+  schoolId         String       @map("school_id") @db.Uuid
+  documentId       String       @map("document_id") @db.Uuid
+  reason           PurgeReason
+  scheduledPurgeAt DateTime     @map("scheduled_purge_at") @db.Timestamptz
+  status           String       @default("pending")
+  reviewedBy       String?      @map("reviewed_by") @db.Uuid
+  triggeredBy      PurgeTrigger @default(manual) @map("triggered_by")
+  ruleId           String?      @map("rule_id") @db.Uuid
+  approvedBy       String?      @map("approved_by") @db.Uuid
+  approvedAt       DateTime?    @map("approved_at") @db.Timestamptz
+  createdAt        DateTime     @default(now()) @map("created_at") @db.Timestamptz
+  purgedAt         DateTime?    @map("purged_at") @db.Timestamptz
+
+  school   School         @relation(fields: [schoolId], references: [id])
+  document Document       @relation(fields: [documentId], references: [id])
+  rule     RetentionRule? @relation(fields: [ruleId], references: [id])
+
+  @@index([schoolId, status])
+  @@map("purge_queue")
+}
+
+model ShareLink {
+  id                    String    @id @default(uuid()) @db.Uuid
+  schoolId              String    @map("school_id") @db.Uuid
+  documentId            String    @map("document_id") @db.Uuid
+  token                 String    @unique
+  createdByMembershipId String?   @map("created_by_membership_id") @db.Uuid
+  expiresAt             DateTime? @map("expires_at") @db.Timestamptz
+  passwordHash          String?   @map("password_hash")
+  allowDownload         Boolean   @default(true) @map("allow_download")
+  maxUses               Int?      @map("max_uses")
+  useCount              Int       @default(0) @map("use_count")
+  revokedAt             DateTime? @map("revoked_at") @db.Timestamptz
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  school    School      @relation(fields: [schoolId], references: [id])
+  document  Document    @relation(fields: [documentId], references: [id])
+  createdBy Membership? @relation("ShareLinkCreator", fields: [createdByMembershipId], references: [id])
+
+  @@index([schoolId])
+  @@map("share_links")
+}
+
+// ============================================================
+// TAHAP 1 — OBSERVABILITAS & KEPATUHAN
+// ============================================================
+
+model AuditLog {
+  id                String      @id @default(uuid()) @db.Uuid
+  schoolId          String?     @map("school_id") @db.Uuid
+  actorUserId       String?     @map("actor_user_id") @db.Uuid
+  actorMembershipId String?     @map("actor_membership_id") @db.Uuid
+  action            AuditAction
+  entityType        String      @map("entity_type")
+  entityId          String?     @map("entity_id") @db.Uuid
+  metadata          Json?
+  ipAddress         String?     @map("ip_address")
+  userAgent         String?     @map("user_agent")
+  createdAt         DateTime    @default(now()) @map("created_at") @db.Timestamptz
+
+  school          School?     @relation(fields: [schoolId], references: [id])
+  actorUser       User?       @relation("AuditActorUser", fields: [actorUserId], references: [id])
+  actorMembership Membership? @relation("AuditActorMembership", fields: [actorMembershipId], references: [id])
+
+  @@index([schoolId, createdAt])
+  @@index([entityType, entityId])
+  @@map("audit_logs")
+}
+
+model Notification {
+  id        String    @id @default(uuid()) @db.Uuid
+  schoolId  String    @map("school_id") @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  type      String
+  title     String
+  body      String
+  data      Json?
+  isRead    Boolean   @default(false) @map("is_read")
+  readAt    DateTime? @map("read_at") @db.Timestamptz
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  school School @relation(fields: [schoolId], references: [id])
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@index([schoolId, userId])
+  @@map("notifications")
+}
+
+model ComplianceSnapshot {
+  id         String   @id @default(uuid()) @db.Uuid
+  schoolId   String   @map("school_id") @db.Uuid
+  score      Decimal  @db.Decimal(5, 2)
+  breakdown  Json?
+  computedAt DateTime @default(now()) @map("computed_at") @db.Timestamptz
+
+  school School @relation(fields: [schoolId], references: [id])
+
+  @@index([schoolId, computedAt])
+  @@map("compliance_snapshots")
+}
+
+// ============================================================
+// TAHAP 2 — SSO BELAJAR.ID
+// ============================================================
+
+model UserIdentity {
+  id        String      @id @default(uuid()) @db.Uuid
+  userId    String      @map("user_id") @db.Uuid
+  provider  SsoProvider
+  subject   String
+  email     String
+  createdAt DateTime    @default(now()) @map("created_at") @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([provider, subject])
+  @@map("user_identities")
+}
+
+model SchoolSsoConfig {
+  id          String      @id @default(uuid()) @db.Uuid
+  schoolId    String      @map("school_id") @db.Uuid
+  provider    SsoProvider
+  domain      String
+  clientId    String      @map("client_id")
+  autoJoin    Boolean     @default(false) @map("auto_join")
+  defaultRole UserRole    @default(operator) @map("default_role")
+  isActive    Boolean     @default(true) @map("is_active")
+  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime    @updatedAt @map("updated_at") @db.Timestamptz
+
+  school School @relation(fields: [schoolId], references: [id])
+
+  @@index([schoolId])
+  @@map("school_sso_configs")
+}
+
+// ============================================================
+// TAHAP 2 — BACKUP & AGENT ON-PREM
+// ============================================================
+
+model BackupConfig {
+  id            String       @id @default(uuid()) @db.Uuid
+  schoolId      String       @map("school_id") @db.Uuid
+  target        BackupTarget
+  scheduleCron  String       @map("schedule_cron")
+  scope         String
+  retentionDays Int          @map("retention_days")
+  isActive      Boolean      @default(true) @map("is_active")
+  createdAt     DateTime     @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime     @updatedAt @map("updated_at") @db.Timestamptz
+
+  school School      @relation(fields: [schoolId], references: [id])
+  jobs   BackupJob[]
+
+  @@index([schoolId])
+  @@map("backup_configs")
+}
+
+model BackupJob {
+  id             String        @id @default(uuid()) @db.Uuid
+  schoolId       String        @map("school_id") @db.Uuid
+  backupConfigId String?       @map("backup_config_id") @db.Uuid
+  status         BackupStatus  @default(queued)
+  startedAt      DateTime?     @map("started_at") @db.Timestamptz
+  finishedAt     DateTime?     @map("finished_at") @db.Timestamptz
+  sizeBytes      BigInt?       @map("size_bytes")
+  checksum       String?
+  error          String?
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz
+
+  school       School        @relation(fields: [schoolId], references: [id])
+  backupConfig BackupConfig? @relation(fields: [backupConfigId], references: [id])
+
+  @@index([schoolId, startedAt])
+  @@map("backup_jobs")
+}
+
+model OnpremAgent {
+  id         String      @id @default(uuid()) @db.Uuid
+  schoolId   String      @map("school_id") @db.Uuid
+  name       String
+  agentToken String      @unique @map("agent_token")
+  version    String?
+  lastSeenAt DateTime?   @map("last_seen_at") @db.Timestamptz
+  status     AgentStatus @default(offline)
+  createdAt  DateTime    @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt  DateTime    @updatedAt @map("updated_at") @db.Timestamptz
+
+  school School @relation(fields: [schoolId], references: [id])
+
+  @@index([schoolId])
+  @@map("onprem_agents")
+}
+
+// ============================================================
+// TAHAP 2 — OCR & SEARCH
+// ============================================================
+
+model OcrJob {
+  id                String    @id @default(uuid()) @db.Uuid
+  documentVersionId String    @map("document_version_id") @db.Uuid
+  status            OcrStatus @default(pending)
+  language          String    @default("id")
+  startedAt         DateTime? @map("started_at") @db.Timestamptz
+  finishedAt        DateTime? @map("finished_at") @db.Timestamptz
+  error             String?
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  documentVersion DocumentVersion @relation(fields: [documentVersionId], references: [id])
+
+  @@index([documentVersionId])
+  @@index([status])
+  @@map("ocr_jobs")
+}
+
+// ============================================================
+// TAHAP 2 — RETENSI OTOMATIS
+// ============================================================
+
+model RetentionRule {
+  id               String          @id @default(uuid()) @db.Uuid
+  schoolId         String          @map("school_id") @db.Uuid
+  documentTypeId   String?         @map("document_type_id") @db.Uuid
+  retentionMonths  Int?            @map("retention_months")
+  action           RetentionAction
+  notifyDaysBefore Int[]           @default([30, 7, 1]) @map("notify_days_before")
+  requiresApproval Boolean         @default(true) @map("requires_approval")
+  isActive         Boolean         @default(true) @map("is_active")
+  createdAt        DateTime        @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime        @updatedAt @map("updated_at") @db.Timestamptz
+
+  school       School        @relation(fields: [schoolId], references: [id])
+  documentType DocumentType? @relation(fields: [documentTypeId], references: [id])
+  purgeQueue   PurgeQueue[]
+
+  @@index([schoolId])
+  @@map("retention_rules")
+}
+
+// ============================================================
+// TAHAP 2 — SISWA & E-RAPORT
+// ============================================================
+
+model Student {
+  id        String        @id @default(uuid()) @db.Uuid
+  schoolId  String        @map("school_id") @db.Uuid
+  nisn      String?
+  nis       String?
+  fullName  String        @map("full_name")
+  gender    String?
+  birthDate DateTime?     @map("birth_date") @db.Date
+  status    StudentStatus @default(active)
+  createdAt DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime      @updatedAt @map("updated_at") @db.Timestamptz
+
+  school             School              @relation(fields: [schoolId], references: [id])
+  classrooms         StudentClassroom[]
+  grades             Grade[]
+  reportCards        ReportCard[]
+  eijazahCertificates EijazahCertificate[]
+
+  @@index([schoolId, status])
+  @@index([schoolId, fullName])
+  @@map("students")
+}
+
+model StudentClassroom {
+  id             String @id @default(uuid()) @db.Uuid
+  studentId      String @map("student_id") @db.Uuid
+  classroomId    String @map("classroom_id") @db.Uuid
+  academicYearId String @map("academic_year_id") @db.Uuid
+
+  student      Student      @relation(fields: [studentId], references: [id])
+  classroom    Classroom    @relation(fields: [classroomId], references: [id])
+  academicYear AcademicYear @relation(fields: [academicYearId], references: [id])
+
+  @@unique([studentId, classroomId, academicYearId])
+  @@map("student_classrooms")
+}
+
+model Subject {
+  id        String   @id @default(uuid()) @db.Uuid
+  schoolId  String   @map("school_id") @db.Uuid
+  name      String
+  code      String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  school School  @relation(fields: [schoolId], references: [id])
+  grades Grade[]
+
+  @@unique([schoolId, code])
+  @@map("subjects")
+}
+
+model Grade {
+  id          String       @id @default(uuid()) @db.Uuid
+  studentId   String       @map("student_id") @db.Uuid
+  classroomId String       @map("classroom_id") @db.Uuid
+  subjectId   String       @map("subject_id") @db.Uuid
+  term        AcademicTerm
+  score       Decimal      @db.Decimal(5, 2)
+  note        String?
+  createdAt   DateTime     @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime     @updatedAt @map("updated_at") @db.Timestamptz
+
+  student   Student   @relation(fields: [studentId], references: [id])
+  classroom Classroom @relation(fields: [classroomId], references: [id])
+  subject   Subject   @relation(fields: [subjectId], references: [id])
+
+  @@unique([studentId, classroomId, subjectId, term])
+  @@map("grades")
+}
+
+model ReportCard {
+  id             String    @id @default(uuid()) @db.Uuid
+  studentId      String    @map("student_id") @db.Uuid
+  classroomId    String    @map("classroom_id") @db.Uuid
+  academicYearId String    @map("academic_year_id") @db.Uuid
+  semesterId     String    @map("semester_id") @db.Uuid
+  status         String    @default("draft")
+  storageKey     String?   @map("storage_key")
+  generatedAt    DateTime? @map("generated_at") @db.Timestamptz
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  student      Student      @relation(fields: [studentId], references: [id])
+  classroom    Classroom    @relation(fields: [classroomId], references: [id])
+  academicYear AcademicYear @relation(fields: [academicYearId], references: [id])
+  semester     Semester     @relation(fields: [semesterId], references: [id])
+
+  @@index([studentId])
+  @@map("report_cards")
+}
+
+// ============================================================
+// TAHAP 2 — E-IJAZAH
+// ============================================================
+
+model EijazahBatch {
+  id             String   @id @default(uuid()) @db.Uuid
+  schoolId       String   @map("school_id") @db.Uuid
+  academicYearId String   @map("academic_year_id") @db.Uuid
+  status         String   @default("draft")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  school       School                @relation(fields: [schoolId], references: [id])
+  academicYear AcademicYear          @relation(fields: [academicYearId], references: [id])
+  certificates EijazahCertificate[]
+
+  @@index([schoolId])
+  @@map("eijazah_batches")
+}
+
+model EijazahCertificate {
+  id           String        @id @default(uuid()) @db.Uuid
+  batchId      String        @map("batch_id") @db.Uuid
+  studentId    String        @map("student_id") @db.Uuid
+  serialNumber String        @unique @map("serial_number")
+  contentHash  String        @map("content_hash")
+  qrPayload    String?       @map("qr_payload")
+  signature    String?
+  status       EijazahStatus @default(draft)
+  issuedAt     DateTime?     @map("issued_at") @db.Timestamptz
+  revokedAt    DateTime?     @map("revoked_at") @db.Timestamptz
+  createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz
+
+  batch   EijazahBatch @relation(fields: [batchId], references: [id])
+  student Student      @relation(fields: [studentId], references: [id])
+
+  @@map("eijazah_certificates")
+}
+
+// ============================================================
+// TAHAP 2 — ARSIP KEUANGAN / BOS
+// ============================================================
+
+model FinanceArchive {
+  id             String   @id @default(uuid()) @db.Uuid
+  schoolId       String   @map("school_id") @db.Uuid
+  academicYearId String?  @map("academic_year_id") @db.Uuid
+  category       String
+  amountIdr      Decimal? @map("amount_idr") @db.Decimal(18, 2)
+  documentId     String?  @map("document_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  school       School        @relation(fields: [schoolId], references: [id])
+  academicYear AcademicYear? @relation(fields: [academicYearId], references: [id])
+  document     Document?     @relation(fields: [documentId], references: [id])
+
+  @@index([schoolId, academicYearId])
+  @@map("finance_archives")
+}
+
+// ============================================================
+// TAHAP 2 — API PUBLIK, WEBHOOK & INTEGRASI
+// ============================================================
+
+model ApiKey {
+  id         String    @id @default(uuid()) @db.Uuid
+  schoolId   String    @map("school_id") @db.Uuid
+  name       String
+  hashedKey  String    @map("hashed_key")
+  scopes     String[]
+  lastUsedAt DateTime? @map("last_used_at") @db.Timestamptz
+  revokedAt  DateTime? @map("revoked_at") @db.Timestamptz
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  school School @relation(fields: [schoolId], references: [id])
+
+  @@index([schoolId])
+  @@map("api_keys")
+}
+
+model Webhook {
+  id        String   @id @default(uuid()) @db.Uuid
+  schoolId  String   @map("school_id") @db.Uuid
+  url       String
+  secret    String
+  events    String[]
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  school     School            @relation(fields: [schoolId], references: [id])
+  deliveries WebhookDelivery[]
+
+  @@index([schoolId])
+  @@map("webhooks")
+}
+
+model WebhookDelivery {
+  id           String        @id @default(uuid()) @db.Uuid
+  webhookId    String        @map("webhook_id") @db.Uuid
+  event        String
+  payload      Json?
+  status       WebhookStatus @default(pending)
+  responseCode Int?          @map("response_code")
+  attempts     Int           @default(0)
+  createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz
+
+  webhook Webhook @relation(fields: [webhookId], references: [id])
+
+  @@index([webhookId])
+  @@map("webhook_deliveries")
+}
+
+model DapodikSync {
+  id         String    @id @default(uuid()) @db.Uuid
+  schoolId   String    @map("school_id") @db.Uuid
+  status     String
+  startedAt  DateTime? @map("started_at") @db.Timestamptz
+  finishedAt DateTime? @map("finished_at") @db.Timestamptz
+  summary    Json?
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  school School @relation(fields: [schoolId], references: [id])
+
+  @@index([schoolId])
+  @@map("dapodik_syncs")
+}
+
+// ============================================================
+// TAHAP 2 — ANALITIK LINTAS SEKOLAH
+// ============================================================
+
+model NetworkMetric {
+  id          String   @id @default(uuid()) @db.Uuid
+  scope       String
+  scopeId     String?  @map("scope_id") @db.Uuid
+  metricKey   String   @map("metric_key")
+  periodStart DateTime @map("period_start") @db.Timestamptz
+  periodEnd   DateTime @map("period_end") @db.Timestamptz
+  value       Decimal  @db.Decimal(18, 4)
+  computedAt  DateTime @default(now()) @map("computed_at") @db.Timestamptz
+
+  @@index([scope, scopeId])
+  @@map("network_metrics")
+}

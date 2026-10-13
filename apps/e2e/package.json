@@ -1,0 +1,19 @@
+{
+  "name": "@arsip/e2e",
+  "version": "0.1.0",
+  "private": true,
+  "description": "End-to-end test (Playwright) untuk Arsip Digital Sekolah",
+  "scripts": {
+    "test": "playwright test",
+    "test:api": "playwright test --project=api",
+    "test:web": "playwright test --project=web",
+    "test:headed": "playwright test --project=web --headed",
+    "test:ui": "playwright test --ui",
+    "report": "playwright show-report",
+    "install:browsers": "playwright install chromium"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0",
+    "@types/node": "^22.10.0"
+  }
+}
