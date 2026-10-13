@@ -1619,13 +1619,45 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/EijazahBatch' }
+  /eijazah/batches/{id}:
+    parameters: [{ $ref: '#/components/parameters/IdPath' }]
+    get:
+      tags: [E-Ijazah]
+      summary: Detail batch ijazah (termasuk sertifikat)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EijazahBatch' }
   /eijazah/batches/{id}/generate:
     parameters: [{ $ref: '#/components/parameters/IdPath' }]
     post:
       tags: [E-Ijazah]
       summary: Generate ijazah untuk batch
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                studentIds:
+                  type: array
+                  items: { type: string, format: uuid }
       responses:
-        '202': { description: Queued }
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  generated: { type: integer }
+                  skipped: { type: integer }
+                  certificates:
+                    type: array
+                    items: { $ref: '#/components/schemas/EijazahCertificate' }
   /eijazah/certificates/{id}/issue:
     parameters: [{ $ref: '#/components/parameters/IdPath' }]
     post:
@@ -1643,7 +1675,11 @@ paths:
       tags: [E-Ijazah]
       summary: Cabut ijazah
       responses:
-        '200': { description: Revoked }
+        '200':
+          description: Revoked
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EijazahCertificate' }
   /eijazah/certificates/{id}/pdf:
     parameters: [{ $ref: '#/components/parameters/IdPath' }]
     get:
@@ -1673,10 +1709,12 @@ paths:
                 type: object
                 properties:
                   valid: { type: boolean }
+                  found: { type: boolean }
                   status: { $ref: '#/components/schemas/EijazahStatus' }
                   studentName: { type: string }
                   schoolName: { type: string }
                   issuedAt: { type: string, format: date-time, nullable: true }
+                  revokedAt: { type: string, format: date-time, nullable: true }
 
   # ===================== E-Raport =====================
   /schools/{schoolId}/students:
@@ -2600,6 +2638,18 @@ components:
         academicYearId: { type: string, format: uuid }
         status: { type: string }
         createdAt: { type: string, format: date-time }
+        academicYear:
+          type: object
+          properties:
+            id: { type: string, format: uuid }
+            name: { type: string }
+        certificates:
+          type: array
+          items: { $ref: '#/components/schemas/EijazahCertificate' }
+        _count:
+          type: object
+          properties:
+            certificates: { type: integer }
     EijazahCertificate:
       type: object
       properties:
@@ -2609,8 +2659,18 @@ components:
         serialNumber: { type: string }
         contentHash: { type: string }
         qrPayload: { type: string, nullable: true }
+        signature: { type: string, nullable: true }
         status: { $ref: '#/components/schemas/EijazahStatus' }
         issuedAt: { type: string, format: date-time, nullable: true }
+        revokedAt: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time }
+        student:
+          type: object
+          properties:
+            id: { type: string, format: uuid }
+            fullName: { type: string }
+            nisn: { type: string, nullable: true }
+            nis: { type: string, nullable: true }
 
     Student:
       type: object

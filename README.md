@@ -66,6 +66,8 @@ npm run dev
 | `PORT` | tidak | Port API (default 3001) |
 | `NEXT_PUBLIC_API_URL` | ya (web) | Base URL API |
 | `COOKIE_DOMAIN` | tidak | Domain cookie sesi. Isi `.domain.id` bila web & API beda subdomain; kosong = host-only (localhost) |
+| `EIJAZAH_SIGNING_KEY` | tidak | Kunci HMAC untuk tanda tangan elektronik ijazah (fallback: `JWT_SECRET`) |
+| `PUBLIC_APP_URL` | tidak | Base URL web untuk tautan/QR verifikasi ijazah (default `http://localhost:3000`) |
 | `S3_ENDPOINT` / `S3_BUCKET` / `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` | tidak | Bila kosong, API memakai penyimpanan lokal `.storage/` (development) |
 
 ### Penyimpanan (storage)
@@ -113,6 +115,7 @@ POST /uploads/{id}/complete           # hitung sha256, deteksi duplikat, simpan 
 | Modul | Ringkasan |
 |---|---|
 | **E-Raport** | data induk siswa (CRUD, soft delete, impor CSV), mata pelajaran, penugasan siswa ke kelas, entri nilai per mapel/term, generate raport PDF per kelas, unduh PDF |
+| **E-Ijazah** | batch per tahun ajaran, generate sertifikat untuk siswa terdaftar, terbitkan + tanda tangan elektronik (HMAC-SHA256), cabut ijazah, unduh PDF ber-QR, verifikasi publik via nomor seri |
 | **Versioning** | riwayat versi + catatan perubahan, detail versi, unduh versi lama, bandingkan dua versi, pulihkan versi lama menjadi versi baru |
 
 Alur E-Raport: **tahun ajaran → semester + kelas → data siswa → mata pelajaran →
@@ -140,6 +143,23 @@ naik → lihat riwayat → unduh/bandingkan → pulihkan** (`POST
 - `GET /documents/{id}/versions/{versionId}/download` mengalirkan berkas versi mana pun
   (mode S3: redirect presigned).
 
+Alur E-Ijazah: **batch per tahun ajaran → generate sertifikat (status `draft`) →
+terbitkan + tanda tangan → verifikasi publik / unduh PDF**.
+
+- Satu batch per (sekolah, tahun ajaran); pembuatan ulang bersifat *idempoten*.
+- Generate membuat sertifikat untuk seluruh siswa terdaftar di kelas pada tahun
+  ajaran tsb (unik per siswa); generate ulang melewati siswa yang sudah punya
+  sertifikat.
+- Nomor seri unik berformat `IJZ-<kode sekolah>-<tahun>-<urut>`.
+- Status sertifikat: `draft → issued → revoked`. Terbitkan/mencabut hanya untuk
+  kepala sekolah / kepala tata usaha.
+- Tanda tangan elektronik memakai HMAC-SHA256 atas `contentHash` (bukti keutuhan
+  data). Integrasi X.509/PKI/BSrE direncanakan terpisah.
+- PDF ijazah dibuat saat permintaan (`GET /eijazah/certificates/{id}/pdf`) dengan
+  `pdfkit` + QR verifikasi, tanpa disimpan ke storage.
+- `GET /verify/{serial}` (publik, tanpa autentikasi) mengembalikan `valid`, `status`,
+  nama siswa, dan nama sekolah.
+
 ## Aplikasi Web (MVP)
 
 Frontend Next.js (App Router) sederhana untuk alur inti:
@@ -151,6 +171,8 @@ Frontend Next.js (App Router) sederhana untuk alur inti:
 | `/dashboard` | Daftar sekolah milik pengguna + form buat sekolah |
 | `/schools/[schoolId]` | Skor kepatuhan, penyimpanan, **tahun ajaran/semester/kelas**, struktur folder (generate), unggah dokumen (+ catatan perubahan), daftar dokumen + **legal hold**, **versioning** (riwayat/unduh/bandingkan/pulihkan), **jejak audit**, aturan retensi |
 | `/schools/[schoolId]/students` | **E-Raport**: data siswa (+ impor CSV), mata pelajaran, penugasan kelas, entri nilai, generate & unduh raport PDF |
+| `/schools/[schoolId]/eijazah` | **E-Ijazah**: batch per tahun ajaran, generate sertifikat, terbitkan/cabut, unduh PDF, verifikasi nomor seri |
+| `/verify/[serial]` | **Verifikasi publik ijazah** (tanpa login): valid/tidak + metadata |
 
 - Autentikasi memakai cookie `httpOnly` (`arsip_token`) yang di-set API saat login/register;
   tidak ada token di JavaScript (aman dari XSS). Klien API lain tetap dapat memakai Bearer token.
@@ -159,6 +181,7 @@ Frontend Next.js (App Router) sederhana untuk alur inti:
 - Alur web (arsip): **tahun ajaran → (aktifkan) → semester + kelas → generate struktur folder → unggah → legal hold → jejak audit**.
 - Alur web (E-Raport): **data siswa → mata pelajaran → penugasan kelas → entri nilai → generate raport PDF**.
 - Alur web (versioning): **unggah dokumen + catatan perubahan → panel Versioning (pilih dokumen) → unduh/bandingkan versi → pulihkan versi menjadi versi baru**.
+- Alur web (E-Ijazah): **pilih tahun ajaran → buat/pilih batch → generate ijazah → terbitkan → verifikasi nomor seri** (halaman publik `/verify/:serial`).
 
 ## Perintah Penting
 
@@ -182,10 +205,12 @@ Test E2E berada di `apps/e2e` (workspace `@arsip/e2e`) dan mencakup:
 
 - **API end-to-end** (`tests/api/`) — alur penuh lewat HTTP: auth, sekolah, akademik &
   struktur folder, dokumen & upload (dedup/policy/download), RBAC, retensi/legal hold,
-  skor kepatuhan, serta **E-Raport** (siswa/impor CSV/mapel/nilai/generate PDF).
+  skor kepatuhan, serta **E-Raport** (siswa/impor CSV/mapel/nilai/generate PDF) dan
+  **E-Ijazah** (batch/generate/terbitkan/cabut/verifikasi/PDF).
 - **Alur web (browser)** (`tests/web/`) — daftar → buat sekolah → unggah dokumen →
   lihat dokumen & skor kepatuhan, generate struktur folder, alur **E-Raport**
-  (siswa → mapel → nilai → raport PDF), proteksi rute, plus smoke halaman.
+  (siswa → mapel → nilai → raport PDF), alur **E-Ijazah** (batch → terbitkan →
+  verifikasi), proteksi rute, plus smoke halaman.
 
 Playwright otomatis menjalankan API (`npm run start --workspace @arsip/api`) dan web
 (`npm run dev --workspace @arsip/web`) lewat `webServer`. Bila server sudah berjalan di

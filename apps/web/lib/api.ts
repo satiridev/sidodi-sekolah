@@ -351,6 +351,57 @@ export interface ReportCardItem {
   academicYear?: { id: string; name: string };
 }
 
+// ---------- E-Ijazah: batch, sertifikat, verifikasi ----------
+
+export type EijazahStatusValue = 'draft' | 'issued' | 'revoked';
+
+export interface EijazahBatchSummary {
+  id: string;
+  schoolId: string;
+  academicYearId: string;
+  status: string;
+  createdAt: string;
+  academicYear: { id: string; name: string };
+  _count?: { certificates: number };
+}
+
+export interface EijazahCertificateItem {
+  id: string;
+  batchId: string;
+  studentId: string;
+  serialNumber: string;
+  contentHash: string;
+  qrPayload: string | null;
+  signature: string | null;
+  status: EijazahStatusValue;
+  issuedAt: string | null;
+  revokedAt: string | null;
+  createdAt: string;
+  student: { id: string; fullName: string; nisn: string | null; nis: string | null };
+}
+
+export interface EijazahBatchDetail extends EijazahBatchSummary {
+  certificates: EijazahCertificateItem[];
+}
+
+export interface EijazahGenerateResult {
+  generated: number;
+  skipped: number;
+  certificates: EijazahCertificateItem[];
+}
+
+export interface EijazahVerifyResult {
+  valid: boolean;
+  found: boolean;
+  serialNumber: string;
+  status?: EijazahStatusValue;
+  studentName?: string;
+  schoolName?: string;
+  issuedAt?: string | null;
+  revokedAt?: string | null;
+}
+
+
 // ---------- Endpoint ----------
 
 export const api = {
@@ -640,5 +691,49 @@ export const api = {
   },
   reportCardPdfUrl(reportCardId: string) {
     return `${API_URL}/report-cards/${reportCardId}/pdf`;
+  },
+
+  // E-Ijazah: batch & sertifikat
+  eijazahBatches(schoolId: string) {
+    return request<EijazahBatchSummary[]>(
+      `/schools/${schoolId}/eijazah/batches`,
+    );
+  },
+  createEijazahBatch(schoolId: string, academicYearId: string) {
+    return request<EijazahBatchDetail>(
+      `/schools/${schoolId}/eijazah/batches`,
+      { method: 'POST', body: { academicYearId } },
+    );
+  },
+  eijazahBatch(batchId: string) {
+    return request<EijazahBatchDetail>(`/eijazah/batches/${batchId}`);
+  },
+  generateEijazah(batchId: string, studentIds?: string[]) {
+    return request<EijazahGenerateResult>(
+      `/eijazah/batches/${batchId}/generate`,
+      { method: 'POST', body: studentIds?.length ? { studentIds } : {} },
+    );
+  },
+  issueEijazah(certificateId: string) {
+    return request<EijazahCertificateItem>(
+      `/eijazah/certificates/${certificateId}/issue`,
+      { method: 'POST' },
+    );
+  },
+  revokeEijazah(certificateId: string) {
+    return request<EijazahCertificateItem>(
+      `/eijazah/certificates/${certificateId}/revoke`,
+      { method: 'POST' },
+    );
+  },
+  eijazahPdfUrl(certificateId: string) {
+    return `${API_URL}/eijazah/certificates/${certificateId}/pdf`;
+  },
+
+  // Verifikasi publik (tanpa autentikasi)
+  verifyEijazah(serial: string) {
+    return request<EijazahVerifyResult>(
+      `/verify/${encodeURIComponent(serial)}`,
+    );
   },
 };

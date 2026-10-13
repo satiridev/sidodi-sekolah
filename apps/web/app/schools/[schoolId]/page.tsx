@@ -252,6 +252,13 @@ export default function SchoolPage() {
           >
             E-Raport
           </Link>
+          <Link
+            className="btn btn-ghost"
+            href={`/schools/${schoolId}/eijazah`}
+            data-testid="nav-eijazah"
+          >
+            E-Ijazah
+          </Link>
           <span className="whoami">{user?.name}</span>
           <button
             className="btn btn-ghost"
