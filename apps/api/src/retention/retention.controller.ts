@@ -30,6 +30,11 @@ export class RetentionController {
     return this.retention.queue(schoolId, user.id);
   }
 
+  @Get('schools/:schoolId/retention/notifications')
+  notifications(@Param('schoolId') schoolId: string, @CurrentUser() user: JwtUser) {
+    return this.retention.notifications(schoolId, user.id);
+  }
+
   @Get('schools/:schoolId/retention/settings')
   settings(@Param('schoolId') schoolId: string, @CurrentUser() user: JwtUser) {
     return this.retention.settings(schoolId, user.id);

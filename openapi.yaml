@@ -1063,6 +1063,19 @@ paths:
               schema:
                 type: array
                 items: { $ref: '#/components/schemas/PurgeQueueItem' }
+  /schools/{schoolId}/retention/notifications:
+    parameters: [{ $ref: '#/components/parameters/SchoolIdPath' }]
+    get:
+      tags: [Retention]
+      summary: Riwayat notifikasi retensi berjenjang (H-30/H-7/H-1)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/RetentionNotification' }
   /schools/{schoolId}/retention/settings:
     parameters: [{ $ref: '#/components/parameters/SchoolIdPath' }]
     get:
@@ -1405,32 +1418,63 @@ paths:
     parameters: [{ $ref: '#/components/parameters/SchoolIdPath' }]
     get:
       tags: [Search]
-      summary: Full-text search + facet
+      summary: Full-text search + facet (PostgreSQL tsvector)
       parameters:
         - { name: q, in: query, required: true, schema: { type: string } }
-        - { name: type, in: query, schema: { type: string } }
-        - { name: year, in: query, schema: { type: string } }
-        - { name: class, in: query, schema: { type: string } }
+        - { name: type, in: query, schema: { type: string }, description: ID jenis dokumen }
+        - { name: year, in: query, schema: { type: string }, description: ID tahun ajaran }
+        - { name: tags, in: query, schema: { type: string }, description: Daftar tag dipisah koma }
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
         - { $ref: '#/components/parameters/LimitParam' }
       responses:
         '200':
           description: OK
           content:
             application/json:
-              schema:
-                type: object
-                properties:
-                  data:
-                    type: array
-                    items: { $ref: '#/components/schemas/Document' }
-                  facets: { type: object, additionalProperties: true }
+              schema: { $ref: '#/components/schemas/SearchResult' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
   /documents/{id}/ocr/reprocess:
     parameters: [{ $ref: '#/components/parameters/IdPath' }]
     post:
       tags: [Search]
-      summary: Ulangi OCR dokumen
+      summary: Jalankan ulang OCR dokumen (sinkron)
       responses:
-        '202': { description: Queued }
+        '201':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OcrJob' }
+  /documents/{id}/ocr/status:
+    parameters: [{ $ref: '#/components/parameters/IdPath' }]
+    get:
+      tags: [Search]
+      summary: Riwayat pekerjaan OCR dokumen
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/OcrJob' }
+  /schools/{schoolId}/ocr/run:
+    parameters: [{ $ref: '#/components/parameters/SchoolIdPath' }]
+    post:
+      tags: [Search]
+      summary: Proses semua pekerjaan OCR tertunda sekolah
+      responses:
+        '201':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  processed: { type: integer }
+                  results:
+                    type: array
+                    items: { $ref: '#/components/schemas/OcrJob' }
   /documents/{id}/extracted-text:
     parameters: [{ $ref: '#/components/parameters/IdPath' }]
     get:
@@ -1444,6 +1488,9 @@ paths:
               schema:
                 type: object
                 properties:
+                  documentId: { type: string, format: uuid }
+                  versionId: { type: string, format: uuid, nullable: true }
+                  status: { type: string, nullable: true, enum: [pending, done, failed, skipped] }
                   text: { type: string }
 
   # ===================== Billing =====================
@@ -1593,8 +1640,7 @@ paths:
   /onprem/agents/register:
     post:
       tags: [On-Prem Agents]
-      summary: Registrasi agent on-prem
-      security: []
+      summary: Registrasi agent on-prem (admin sekolah)
       requestBody:
         required: true
         content:
@@ -1608,7 +1654,7 @@ paths:
                 version: { type: string }
       responses:
         '201':
-          description: Created
+          description: Created (memuat agentToken, hanya ditampilkan sekali)
           content:
             application/json:
               schema: { $ref: '#/components/schemas/OnpremAgent' }
@@ -1616,9 +1662,21 @@ paths:
     parameters: [{ $ref: '#/components/parameters/IdPath' }]
     post:
       tags: [On-Prem Agents]
-      summary: Status/heartbeat agent
+      summary: Status/heartbeat agent (autentikasi token agent)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token: { type: string, description: agentToken dari registrasi }
+                status: { type: string, enum: [online, error] }
       responses:
         '200': { description: OK }
+        '403': { $ref: '#/components/responses/Forbidden' }
   /schools/{schoolId}/onprem/agents:
     parameters: [{ $ref: '#/components/parameters/SchoolIdPath' }]
     get:
@@ -2363,6 +2421,7 @@ components:
         maxFileSizeBytes: { type: integer, format: int64 }
         status: { type: string, enum: [active, suspended] }
         analyticsOptIn: { type: boolean }
+        retentionAutoEnqueue: { type: boolean }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
     SchoolUpdate:
@@ -2377,6 +2436,7 @@ components:
         email: { type: string }
         logoUrl: { type: string }
         analyticsOptIn: { type: boolean }
+        retentionAutoEnqueue: { type: boolean }
 
     AnalyticsTrendPoint:
       type: object
@@ -2699,7 +2759,7 @@ components:
         sizeBytes: { type: integer, format: int64 }
         contentHash: { type: string }
         scanStatus: { type: string, enum: [pending, clean, infected, error] }
-        ocrStatus: { type: string, enum: [pending, done, failed] }
+        ocrStatus: { type: string, enum: [pending, done, failed, skipped] }
         changeNote: { type: string, nullable: true }
         uploadedByMembershipId: { type: string, format: uuid, nullable: true }
         createdAt: { type: string, format: date-time }
@@ -2759,6 +2819,89 @@ components:
           default: [30, 7, 1]
         requiresApproval: { type: boolean }
         isActive: { type: boolean }
+
+    RetentionNotification:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        schoolId: { type: string, format: uuid }
+        documentId: { type: string, format: uuid }
+        ruleId: { type: string, format: uuid, nullable: true }
+        stage: { type: integer, description: 'H-30/H-7/H-1 (nilai 30, 7, atau 1)' }
+        status: { type: string }
+        documentExpiresAt: { type: string, format: date-time, nullable: true }
+        recipientRoles:
+          type: array
+          items: { type: string }
+        recipientCount: { type: integer }
+        createdAt: { type: string, format: date-time }
+
+    OcrJob:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        documentVersionId: { type: string, format: uuid }
+        status: { type: string, enum: [pending, done, failed, skipped] }
+        language: { type: string }
+        error: { type: string, nullable: true }
+        startedAt: { type: string, format: date-time, nullable: true }
+        finishedAt: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time }
+        textLength: { type: integer }
+
+    SearchResult:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string, format: uuid }
+              title: { type: string }
+              description: { type: string, nullable: true }
+              tags:
+                type: array
+                items: { type: string }
+              visibility: { type: string }
+              documentTypeId: { type: string, format: uuid, nullable: true }
+              documentTypeName: { type: string, nullable: true }
+              academicYearId: { type: string, format: uuid, nullable: true }
+              versionId: { type: string, format: uuid, nullable: true }
+              fileName: { type: string, nullable: true }
+              extension: { type: string, nullable: true }
+              sizeBytes: { type: string, nullable: true }
+              ocrStatus: { type: string, nullable: true }
+              excerpt: { type: string, nullable: true }
+              rank: { type: number, format: float }
+        total: { type: integer }
+        page: { type: integer }
+        limit: { type: integer }
+        facets:
+          type: object
+          properties:
+            documentType:
+              type: array
+              items:
+                type: object
+                properties:
+                  id: { type: string, format: uuid }
+                  name: { type: string, nullable: true }
+                  count: { type: integer }
+            academicYear:
+              type: array
+              items:
+                type: object
+                properties:
+                  id: { type: string, format: uuid }
+                  count: { type: integer }
+            tags:
+              type: array
+              items:
+                type: object
+                properties:
+                  value: { type: string }
+                  count: { type: integer }
 
     ShareLink:
       type: object

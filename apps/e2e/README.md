@@ -78,7 +78,10 @@ tests/
 │   ├── 09-versioning.spec.ts          # Versioning: riwayat, unduh, bandingkan, restore
 │   ├── 10-eijazah.spec.ts             # E-Ijazah: batch, generate, terbitkan, cabut, verifikasi, PDF
 │   ├── 11-keuangan.spec.ts            # Keuangan/BOS: arsip, ringkasan per TA, ekspor paket audit (ZIP)
-│   └── 12-analitik.spec.ts            # Analitik: metrik sekolah, opt-in, agregat anonim lintas sekolah
+│   ├── 12-analitik.spec.ts            # Analitik: metrik sekolah, opt-in, agregat anonim lintas sekolah
+│   ├── 13-retensi-otomatis.spec.ts    # Retensi otomatis: enqueue-all, scheduler, notifikasi H-1, opt-out
+│   ├── 14-ocr-search.spec.ts          # OCR: ekstraksi teks, reprocess, skip gambar; pencarian full-text + facet
+│   └── 15-integrations.spec.ts        # Backup, on-prem agent, API key, webhook, Dapodik, SSO config
 └── web/
     ├── home.spec.ts                 # smoke halaman landing
     ├── guard.spec.ts                # proteksi rute (middleware redirect ke /login)

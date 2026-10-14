@@ -76,6 +76,14 @@ export class UpdateSchoolDto {
   @IsOptional()
   @IsBoolean()
   analyticsOptIn?: boolean;
+
+  /**
+   * Otomasi pengantrean pemusnahan dokumen kedaluwarsa oleh scheduler retensi.
+   * Keputusan tata kelola data, hanya kepala sekolah/admin.
+   */
+  @IsOptional()
+  @IsBoolean()
+  retentionAutoEnqueue?: boolean;
 }
 
 export class UpdateSchoolSettingsDto {

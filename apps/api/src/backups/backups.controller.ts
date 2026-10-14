@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { BackupsService } from './backups.service';
 import { UpdateBackupConfigDto } from './dto/backups.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -24,6 +24,7 @@ export class BackupsController {
   }
 
   @Post('schools/:schoolId/backups/run')
+  @HttpCode(HttpStatus.ACCEPTED)
   run(@Param('schoolId') schoolId: string, @CurrentUser() user: JwtUser) {
     return this.backups.runManual(schoolId, user.id);
   }

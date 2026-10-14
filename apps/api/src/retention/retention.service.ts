@@ -42,17 +42,32 @@ export class RetentionService {
     });
   }
 
+  /** Riwayat notifikasi retensi berjenjang (H-30/H-7/H-1) untuk sekolah. */
+  async notifications(schoolId: string, userId: string) {
+    await this.access.assertRole(userId, schoolId, [...ADMIN, 'auditor']);
+    return this.prisma.retentionNotification.findMany({
+      where: { schoolId },
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+      include: {
+        document: {
+          select: { id: true, title: true, retentionExpiresAt: true, status: true },
+        },
+      },
+    });
+  }
+
   async settings(schoolId: string, userId: string) {
     await this.access.membership(userId, schoolId);
     const school = await this.prisma.school.findUnique({
       where: { id: schoolId },
-      select: { maxFileSizeBytes: true },
+      select: { maxFileSizeBytes: true, retentionAutoEnqueue: true },
     });
     return {
       maxFileSizeBytes: school?.maxFileSizeBytes,
       defaultNotifyDaysBefore: [30, 7, 1],
       purgeRequiresApproval: true,
-      autoEnqueueExpired: true,
+      autoEnqueueExpired: school?.retentionAutoEnqueue ?? true,
       dateNote: 'Kebijakan retensi mengikuti Permendikdasmen 7/2026 & PP 71/2019',
     };
   }
@@ -223,6 +238,10 @@ export class RetentionService {
     });
 
     let enqueued = 0;
+    const recipientRoles = ['headmaster', 'head_of_administration'];
+    const recipientCount = await this.prisma.membership.count({
+      where: { schoolId, status: 'active', role: { in: ['headmaster', 'head_of_administration'] } },
+    });
     for (const doc of expired) {
       const existing = await this.prisma.purgeQueue.findFirst({
         where: { documentId: doc.id, status: { in: ['pending', 'scheduled'] } },
@@ -260,7 +279,8 @@ export class RetentionService {
                 stage,
                 status: 'sent',
                 documentExpiresAt: doc.retentionExpiresAt,
-                recipientCount: 0,
+                recipientRoles,
+                recipientCount,
               },
             });
           }

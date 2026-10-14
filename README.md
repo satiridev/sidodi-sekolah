@@ -119,6 +119,11 @@ POST /uploads/{id}/complete           # hitung sha256, deteksi duplikat, simpan 
 | **Versioning** | riwayat versi + catatan perubahan, detail versi, unduh versi lama, bandingkan dua versi, pulihkan versi lama menjadi versi baru |
 | **Arsip Keuangan/BOS** | pencatatan arsip keuangan (RKAS, SPJ, kuitansi, laporan BOS, dll.) bertaut dokumen + nominal, ringkasan per tahun ajaran, ekspor paket audit (ZIP + manifest) |
 | **Analitik Lintas Sekolah** | metrik per sekolah (skor kepatuhan, storage, dokumen mendekati retensi, tren unggahan, dokumen per jenis) + agregasi anonim lintas tenant untuk yayasan/dinas (opt-in) |
+| **Retensi Otomatis** | scheduler mengantre dokumen kedaluwarsa (`purge_queue`) + notifikasi berjenjang H-30/H-7/H-1 ke kepala sekolah/kepala TU |
+| **OCR & Pencarian** | pipeline ekstraksi teks (PDF lapisan teks + berkas teks) → `ocr_text` + indeks `tsvector`, pencarian full-text ber-facet |
+| **SSO Belajar.id** | konfigurasi OIDC Google Belajar.id per sekolah (domain, client id, auto-join, peran default) |
+| **Backup & On-Prem** | konfigurasi backup berlapis (cloud/on-prem), riwayat job, agen on-prem dengan token + heartbeat |
+| **API Publik & Integrasi** | API key berlingkup (di-hash), webhook event + secret, sinkronisasi Dapodik |
 
 Alur E-Raport: **tahun ajaran → semester + kelas → data siswa → mata pelajaran →
 penugasan siswa ke kelas → entri nilai → generate raport (PDF)**.
@@ -188,6 +193,59 @@ anonim yayasan/dinas**.
 - Skor kepatuhan agregat dihitung dari `compliance_snapshots` (materialized view);
   tabel `network_metrics` disediakan untuk cache agregat di iterasi berikutnya.
 
+Alur Retensi Otomatis: **dokumen mencapai `retentionExpiresAt` → scheduler mengantre
+pemusnahan + notifikasi berjenjang → persetujuan/penolakan**.
+
+- `POST /retention/scheduler/run` memindai seluruh sekolah aktif (yang mengaktifkan
+  `retentionAutoEnqueue`) dan mengisi `purge_queue` (`triggeredBy: auto`,
+  `reason: retention_expired`), lalu menandai dokumen `pending_deletion`.
+- Notifikasi berjenjang H-30/H-7/H-1 tercatat pada `retention_notifications`
+  (roles penerima + jumlah) dan dapat dilihat via
+  `GET /schools/{id}/retention/notifications`.
+- Otomasi per sekolah dapat dinonaktifkan lewat `PATCH /schools/{id}`
+  (`retentionAutoEnqueue`, kepala sekolah/kepala TU) dan tercermin di
+  `GET /schools/{id}/retention/settings` (`autoEnqueueExpired`).
+
+Alur OCR & Pencarian (§4.3): **unggah berkas → pekerjaan OCR tertunda → ekstraksi
+teks → indeks `tsvector` → pencarian full-text + facet**.
+
+- `POST /schools/{id}/ocr/run` memproses semua pekerjaan OCR tertunda sekolah
+  (PDF memakai `pdfjs-dist` untuk lapisan teks; berkas teks dibaca langsung UTF-8;
+  gambar ditandai `skipped` karena belum ada penyedia OCR eksternal).
+- Dokumen > ambang `OCR_MAX_BYTES` (default 50 MB) ditandai `skipped`.
+- `GET /documents/{id}/extracted-text` mengembalikan hasil teks; 
+  `POST /documents/{id}/ocr/reprocess` menjalankan ulang secara sinkron.
+- `GET /schools/{id}/search?q=` memakai `websearch_to_tsquery('indonesian', ...)`
+  dengan fallback `ILIKE`, mengembalikan `data`, `total`, `page`, `limit`, dan
+  `facets` (jenis dokumen, tahun ajaran, tag).
+
+Alur SSO Belajar.id (§4.1): **konfigurasi OIDC per sekolah** (domain, client id,
+auto-join, peran default) lewat `GET/PATCH /schools/{id}/sso` (kepala sekolah/kepala
+TU). Login email/password tetap tersedia sebagai fallback. Verifikasi `id_token`
+penuh (OIDC `authorization_code`) direncanakan pada iterasi berikutnya.
+
+Alur Backup & On-Prem (§4.5): **konfigurasi backup → jalankan → riwayat job →
+agen on-prem**.
+
+- `GET/PATCH /schools/{id}/backups/config` (kepala sekolah/kepala TU);
+  `POST /schools/{id}/backups/run` membuat `backup_job` berstatus `queued`;
+  `GET /schools/{id}/backups/jobs` menampilkan riwayat.
+- `POST /onprem/agents/register` (admin sekolah) membuat agen + `agentToken`
+  (ditampilkan sekali); `POST /onprem/agents/{id}/heartbeat` memperbarui status
+  dengan autentikasi token agen; `GET /schools/{id}/onprem/agents` tidak
+  mengembalikan token.
+
+Alur API Publik & Integrasi (§4.10): **API key berlingkup, webhook event, sinkronisasi
+Dapodik**.
+
+- API key (`POST /schools/{id}/api-keys`) disimpan hanya sebagai hash SHA-256;
+  kunci mentah (`ak_...`) ditampilkan sekali. `DELETE /api-keys/{id}` mencabut.
+- Webhook (`POST /schools/{id}/webhooks`) menyimpan `secret` untuk tanda tangan
+  event (`document.created`, `document.purged`, `eijazah.issued`, `backup.completed`);
+  daftar tidak mengembalikan `secret`.
+- `POST /integrations/dapodik/sync` mengantre impor data siswa/sekolah (status
+  `queued`); `GET /integrations/dapodik/syncs?schoolId=` menampilkan riwayat.
+
 ## Aplikasi Web (MVP)
 
 Frontend Next.js (App Router) sederhana untuk alur inti:
@@ -240,8 +298,11 @@ Test E2E berada di `apps/e2e` (workspace `@arsip/e2e`) dan mencakup:
   struktur folder, dokumen & upload (dedup/policy/download), RBAC, retensi/legal hold,
   skor kepatuhan, serta **E-Raport** (siswa/impor CSV/mapel/nilai/generate PDF),
   **E-Ijazah** (batch/generate/terbitkan/cabut/verifikasi/PDF),
-  **Arsip Keuangan/BOS** (arsip/ringkasan/ekspor ZIP), dan **Analitik Lintas Sekolah**
-  (metrik sekolah, opt-in, agregat anonim jaringan).
+  **Arsip Keuangan/BOS** (arsip/ringkasan/ekspor ZIP), **Analitik Lintas Sekolah**
+  (metrik sekolah, opt-in, agregat anonim jaringan), **Retensi Otomatis** (enqueue-all,
+  scheduler, notifikasi H-1, opt-out otomasi), **OCR & Pencarian** (ekstraksi teks,
+  reprocess, skip gambar, full-text + facet), serta **Backup/On-Prem/API Key/Webhook/
+  Dapodik/SSO** (konfigurasi, token agen, hash kunci, secret webhook, validasi).
 - **Alur web (browser)** (`tests/web/`) — daftar → buat sekolah → unggah dokumen →
   lihat dokumen & skor kepatuhan, generate struktur folder, alur **E-Raport**
   (siswa → mapel → nilai → raport PDF), alur **E-Ijazah** (batch → terbitkan →

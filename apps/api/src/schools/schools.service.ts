@@ -159,6 +159,9 @@ export class SchoolsService {
     if (dto.analyticsOptIn !== undefined) {
       await this.access.assertRole(userId, schoolId, ['head_of_administration']);
     }
+    if (dto.retentionAutoEnqueue !== undefined) {
+      await this.access.assertRole(userId, schoolId, ['head_of_administration']);
+    }
     const school = await this.prisma.school.update({
       where: { id: schoolId },
       data: { ...dto },
@@ -170,8 +173,15 @@ export class SchoolsService {
       entityType: 'School',
       entityId: schoolId,
       metadata:
-        dto.analyticsOptIn !== undefined
-          ? { analyticsOptIn: dto.analyticsOptIn }
+        dto.analyticsOptIn !== undefined || dto.retentionAutoEnqueue !== undefined
+          ? {
+              ...(dto.analyticsOptIn !== undefined
+                ? { analyticsOptIn: dto.analyticsOptIn }
+                : {}),
+              ...(dto.retentionAutoEnqueue !== undefined
+                ? { retentionAutoEnqueue: dto.retentionAutoEnqueue }
+                : {}),
+            }
           : undefined,
     });
     return school;

@@ -1,5 +1,6 @@
 import { Body, Controller, Delete, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { ApiKeysService } from './api-keys.service';
+import { CreateApiKeyDto } from './dto/api-keys.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser, JwtUser } from '../common/decorators';
 
@@ -17,12 +18,9 @@ export class ApiKeysController {
   create(
     @Param('schoolId') schoolId: string,
     @CurrentUser() user: JwtUser,
-    @Body() body: { name: string; scopes: string[] },
+    @Body() dto: CreateApiKeyDto,
   ) {
-    if (!body.name || !Array.isArray(body.scopes)) {
-      throw new Error('name dan scopes wajib diisi');
-    }
-    return this.apiKeys.create(schoolId, user.id, body.name, body.scopes);
+    return this.apiKeys.create(schoolId, user.id, dto.name, dto.scopes);
   }
 
   @Delete('api-keys/:id')

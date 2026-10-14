@@ -1,5 +1,6 @@
 import { Body, Controller, Delete, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { WebhooksService } from './webhooks.service';
+import { CreateWebhookDto } from './dto/webhooks.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser, JwtUser } from '../common/decorators';
 
@@ -17,12 +18,9 @@ export class WebhooksController {
   create(
     @Param('schoolId') schoolId: string,
     @CurrentUser() user: JwtUser,
-    @Body() body: { url: string; events: string[] },
+    @Body() dto: CreateWebhookDto,
   ) {
-    if (!body.url || !Array.isArray(body.events)) {
-      throw new Error('url dan events wajib diisi');
-    }
-    return this.webhooks.create(schoolId, user.id, body.url, body.events);
+    return this.webhooks.create(schoolId, user.id, dto.url, dto.events);
   }
 
   @Delete('webhooks/:id')

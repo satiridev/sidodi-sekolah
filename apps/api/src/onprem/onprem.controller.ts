@@ -1,5 +1,15 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import { OnpremService } from './onprem.service';
+import { AgentHeartbeatDto, RegisterAgentDto } from './dto/onprem.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser, JwtUser } from '../common/decorators';
 
@@ -8,18 +18,15 @@ export class OnpremController {
   constructor(private readonly onprem: OnpremService) {}
 
   @Post('onprem/agents/register')
-  register(
-    @Body() body: { schoolId: string; name: string; version?: string },
-  ) {
-    if (!body.schoolId || !body.name) {
-      throw new Error('schoolId dan name wajib diisi');
-    }
-    return this.onprem.register(body.schoolId, body.name, body.version);
+  @UseGuards(JwtAuthGuard)
+  register(@Body() dto: RegisterAgentDto, @CurrentUser() user: JwtUser) {
+    return this.onprem.register(dto.schoolId, user.id, dto.name, dto.version);
   }
 
   @Post('onprem/agents/:id/heartbeat')
-  heartbeat(@Param('id') id: string, @Body() body?: { status?: string }) {
-    return this.onprem.heartbeat(id, body?.status);
+  @HttpCode(HttpStatus.OK)
+  heartbeat(@Param('id') id: string, @Body() dto: AgentHeartbeatDto) {
+    return this.onprem.heartbeat(id, dto.token, dto.status);
   }
 
   @Get('schools/:schoolId/onprem/agents')

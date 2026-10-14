@@ -1,11 +1,12 @@
-import { randomBytes } from 'crypto';
+import { createHash, randomBytes } from 'crypto';
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AccessService } from '../common/access.service';
 import { AuditService } from '../audit/audit.service';
 
+/** Simpan hanya hash SHA-256 dari kunci; nilai mentah hanya ditampilkan sekali. */
 function hashKey(key: string): string {
-  return key;
+  return createHash('sha256').update(key).digest('hex');
 }
 
 @Injectable()
