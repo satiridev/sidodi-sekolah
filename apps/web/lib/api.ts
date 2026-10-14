@@ -547,6 +547,61 @@ export interface NetworkAnalytics {
   uploads: { trend: AnalyticsTrendPoint[] };
 }
 
+// ---------- OCR & Pencarian ----------
+
+export type OcrStatusValue = 'pending' | 'done' | 'failed' | 'skipped';
+
+export interface OcrJobItem {
+  id: string;
+  documentVersionId: string;
+  status: OcrStatusValue;
+  language: string;
+  error: string | null;
+  startedAt?: string | null;
+  finishedAt?: string | null;
+  createdAt?: string;
+  textLength?: number;
+}
+
+export interface ExtractedText {
+  documentId: string;
+  versionId: string | null;
+  status: OcrStatusValue | null;
+  text: string;
+}
+
+export interface SearchHit {
+  id: string;
+  title: string;
+  description: string | null;
+  tags: string[];
+  visibility: string;
+  documentTypeId: string | null;
+  documentTypeName: string | null;
+  academicYearId: string | null;
+  versionId: string | null;
+  fileName: string | null;
+  extension: string | null;
+  sizeBytes: string | null;
+  ocrStatus: OcrStatusValue | null;
+  excerpt: string | null;
+  rank: number;
+}
+
+export interface SearchFacets {
+  documentType: Array<{ id: string; name: string | null; count: number }>;
+  academicYear: Array<{ id: string; count: number }>;
+  tags: Array<{ value: string; count: number }>;
+}
+
+export interface SearchResult {
+  data: SearchHit[];
+  total: number;
+  page: number;
+  limit: number;
+  facets: SearchFacets;
+}
+
 // ---------- Endpoint ----------
 
 export const api = {
@@ -941,5 +996,50 @@ export const api = {
   /** Agregat anonim lintas sekolah untuk yayasan/dinas. */
   networkAnalytics() {
     return request<NetworkAnalytics>('/analytics/network');
+  },
+
+  // Pencarian & OCR
+  /** Pencarian full-text ber-facet (PostgreSQL tsvector). */
+  search(
+    schoolId: string,
+    params: {
+      q: string;
+      type?: string;
+      year?: string;
+      tags?: string;
+      page?: number;
+      limit?: number;
+    },
+  ) {
+    const qs = new URLSearchParams({ q: params.q });
+    if (params.type) qs.set('type', params.type);
+    if (params.year) qs.set('year', params.year);
+    if (params.tags) qs.set('tags', params.tags);
+    if (params.page) qs.set('page', String(params.page));
+    if (params.limit) qs.set('limit', String(params.limit));
+    return request<SearchResult>(
+      `/schools/${schoolId}/search?${qs.toString()}`,
+    );
+  },
+  /** Hasil teks yang terekstraksi (OCR) dari versi terkini dokumen. */
+  extractedText(documentId: string) {
+    return request<ExtractedText>(`/documents/${documentId}/extracted-text`);
+  },
+  /** Riwayat pekerjaan OCR dokumen. */
+  ocrStatus(documentId: string) {
+    return request<OcrJobItem[]>(`/documents/${documentId}/ocr/status`);
+  },
+  /** Jalankan ulang OCR secara sinkron. */
+  ocrReprocess(documentId: string) {
+    return request<OcrJobItem>(`/documents/${documentId}/ocr/reprocess`, {
+      method: 'POST',
+    });
+  },
+  /** Proses semua pekerjaan OCR tertunda di sekolah. */
+  runOcr(schoolId: string) {
+    return request<{ processed: number; results: OcrJobItem[] }>(
+      `/schools/${schoolId}/ocr/run`,
+      { method: 'POST' },
+    );
   },
 };

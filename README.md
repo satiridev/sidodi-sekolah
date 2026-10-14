@@ -259,6 +259,7 @@ Frontend Next.js (App Router) sederhana untuk alur inti:
 | `/schools/[schoolId]/students` | **E-Raport**: data siswa (+ impor CSV), mata pelajaran, penugasan kelas, entri nilai, generate & unduh raport PDF |
 | `/schools/[schoolId]/eijazah` | **E-Ijazah**: batch per tahun ajaran, generate sertifikat, terbitkan/cabut, unduh PDF, verifikasi nomor seri |
 | `/schools/[schoolId]/keuangan` | **Arsip Keuangan/BOS**: catat arsip keuangan bertaut dokumen, ringkasan per tahun ajaran, ekspor paket audit (ZIP) |
+| `/schools/[schoolId]/pencarian` | **OCR & Pencarian**: cari full-text ber-facet, jalankan pemrosesan OCR tertunda, lihat teks hasil ekstraksi |
 | `/schools/[schoolId]/analitik` | **Analitik Sekolah**: skor kepatuhan + riwayat, storage, dokumen mendekati retensi, tren unggahan, dokumen per jenis, dan opt-in berbagi metrik |
 | `/analytics` | **Analitik Lintas Sekolah** (yayasan/dinas): agregat anonim sekolah opt-in |
 | `/verify/[serial]` | **Verifikasi publik ijazah** (tanpa login): valid/tidak + metadata |
@@ -272,6 +273,7 @@ Frontend Next.js (App Router) sederhana untuk alur inti:
 - Alur web (versioning): **unggah dokumen + catatan perubahan → panel Versioning (pilih dokumen) → unduh/bandingkan versi → pulihkan versi menjadi versi baru**.
 - Alur web (E-Ijazah): **pilih tahun ajaran → buat/pilih batch → generate ijazah → terbitkan → verifikasi nomor seri** (halaman publik `/verify/:serial`).
 - Alur web (Keuangan/BOS): **unggah dokumen keuangan → catat arsip (kategori + nominal + dokumen) → ringkasan per tahun ajaran → ekspor paket audit (ZIP)**.
+- Alur web (Pencarian): **unggah berkas teks → jalankan OCR tertunda → cari kata kunci (facet jenis/tahun/tag) → lihat teks hasil ekstraksi**.
 - Alur web (Analitik): **halaman Analitik sekolah (skor/storage/retensi/tren) → ikut berbagi metrik (opt-in) → dasbor `/analytics` lintas sekolah (agregat anonim)**.
 
 ## Perintah Penting
@@ -307,8 +309,9 @@ Test E2E berada di `apps/e2e` (workspace `@arsip/e2e`) dan mencakup:
   lihat dokumen & skor kepatuhan, generate struktur folder, alur **E-Raport**
   (siswa → mapel → nilai → raport PDF), alur **E-Ijazah** (batch → terbitkan →
   verifikasi), alur **Arsip Keuangan/BOS** (catat → ringkasan → ekspor ZIP),
-  alur **Analitik** (metrik sekolah → opt-in → dasbor jaringan), proteksi rute,
-  plus smoke halaman.
+  alur **OCR & Pencarian** (unggah berkas teks → jalankan OCR → cari + facet →
+  lihat teks hasil ekstraksi), alur **Analitik** (metrik sekolah → opt-in → dasbor
+  jaringan), proteksi rute, plus smoke halaman.
 
 Playwright otomatis menjalankan API (`npm run start --workspace @arsip/api`) dan web
 (`npm run dev --workspace @arsip/web`) lewat `webServer`. Bila server sudah berjalan di

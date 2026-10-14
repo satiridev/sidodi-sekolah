@@ -273,6 +273,13 @@ export default function SchoolPage() {
           >
             Analitik
           </Link>
+          <Link
+            className="btn btn-ghost"
+            href={`/schools/${schoolId}/pencarian`}
+            data-testid="nav-pencarian"
+          >
+            Pencarian
+          </Link>
           <span className="whoami">{user?.name}</span>
           <button
             className="btn btn-ghost"
