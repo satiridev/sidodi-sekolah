@@ -10,6 +10,7 @@ import { AccessService } from '../common/access.service';
 import { AuditService } from '../audit/audit.service';
 import { StorageService } from '../storage/storage.service';
 import { computeRetention } from '../common/retention';
+import { reindexDocument } from '../common/search-index';
 import { validateFilePolicy } from '../common/policy';
 import { InitiateUploadDto, PartUploadDto } from './dto/upload.dto';
 
@@ -296,6 +297,12 @@ export class UploadsService {
         data: { status: 'completed' },
       }),
     ]);
+
+    // Pipeline OCR (§4.3): antre versi baru, lalu indeks full-text.
+    await this.prisma.ocrJob.create({
+      data: { documentVersionId: version.id, status: 'pending', language: 'id' },
+    });
+    await reindexDocument(this.prisma, documentId);
 
     await this.storage.delete(tempKey);
     await this.audit.log({

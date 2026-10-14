@@ -21,6 +21,8 @@ import { EijazahModule } from './eijazah/eijazah.module';
 import { FinanceModule } from './finance/finance.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { SsoModule } from './sso/sso.module';
+import { SearchModule } from './search/search.module';
+import { OcrModule } from './ocr/ocr.module';
 
 @Module({
   imports: [
@@ -48,6 +50,8 @@ import { SsoModule } from './sso/sso.module';
     FinanceModule,
     AnalyticsModule,
     SsoModule,
+    SearchModule,
+    OcrModule,
   ],
 })
 export class AppModule {}

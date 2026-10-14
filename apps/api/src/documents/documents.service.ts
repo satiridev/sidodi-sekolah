@@ -10,6 +10,7 @@ import { AccessService } from '../common/access.service';
 import { AuditService } from '../audit/audit.service';
 import { StorageService } from '../storage/storage.service';
 import { computeRetention } from '../common/retention';
+import { reindexDocument } from '../common/search-index';
 import {
   CheckDuplicateDto,
   CreateDocumentDto,
@@ -230,6 +231,8 @@ export class DocumentsService {
       entityType: 'Document',
       entityId: id,
     });
+    // Judul/deskripsi ikut diindeks untuk pencarian full-text.
+    await reindexDocument(this.prisma, id);
     return updated;
   }
 
@@ -441,6 +444,8 @@ export class DocumentsService {
       });
       return version;
     });
+
+    await reindexDocument(this.prisma, id);
 
     await this.audit.log({
       schoolId: doc.schoolId,
