@@ -280,6 +280,13 @@ export default function SchoolPage() {
           >
             Pencarian
           </Link>
+          <Link
+            className="btn btn-ghost"
+            href={`/schools/${schoolId}/pengaturan`}
+            data-testid="nav-pengaturan"
+          >
+            Integrasi
+          </Link>
           <span className="whoami">{user?.name}</span>
           <button
             className="btn btn-ghost"

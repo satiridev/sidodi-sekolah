@@ -602,6 +602,99 @@ export interface SearchResult {
   facets: SearchFacets;
 }
 
+// ---------- Integrasi & Pengaturan ----------
+
+export type RoleValue =
+  | 'headmaster'
+  | 'head_of_administration'
+  | 'teacher'
+  | 'operator'
+  | 'auditor';
+
+export interface SsoConfig {
+  id: string;
+  schoolId: string;
+  provider: string;
+  domain: string;
+  clientId: string;
+  autoJoin: boolean;
+  defaultRole: RoleValue;
+  isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export type BackupTargetValue = 'cloud' | 'onprem';
+export type BackupStatusValue = 'queued' | 'running' | 'success' | 'failed';
+
+export interface BackupConfig {
+  id: string;
+  schoolId: string;
+  target: BackupTargetValue;
+  scheduleCron: string;
+  scope: string;
+  retentionDays: number;
+  isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface BackupJob {
+  id: string;
+  schoolId: string;
+  status: BackupStatusValue;
+  startedAt: string | null;
+  finishedAt: string | null;
+  sizeBytes: string | null;
+  checksum: string | null;
+  error: string | null;
+  createdAt: string;
+}
+
+export interface ApiKeyItem {
+  id: string;
+  name: string;
+  scopes: string[];
+  lastUsedAt: string | null;
+  revokedAt: string | null;
+  createdAt: string;
+}
+
+export interface ApiKeyCreated {
+  id: string;
+  key: string;
+  scopes: string[];
+}
+
+export interface Webhook {
+  id: string;
+  url: string;
+  events: string[];
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WebhookCreated extends Webhook {
+  secret: string;
+}
+
+export type AgentStatusValue = 'online' | 'offline' | 'error';
+
+export interface OnpremAgent {
+  id: string;
+  name: string;
+  version: string | null;
+  status: AgentStatusValue;
+  lastSeenAt: string | null;
+  createdAt: string;
+}
+
+export interface OnpremAgentCreated extends OnpremAgent {
+  schoolId: string;
+  agentToken: string;
+}
+
 // ---------- Endpoint ----------
 
 export const api = {
@@ -1041,5 +1134,100 @@ export const api = {
       `/schools/${schoolId}/ocr/run`,
       { method: 'POST' },
     );
+  },
+
+  // Integrasi & Pengaturan — SSO Belajar.id
+  ssoConfig(schoolId: string) {
+    return request<SsoConfig>(`/schools/${schoolId}/sso`);
+  },
+  updateSsoConfig(
+    schoolId: string,
+    data: {
+      domain?: string;
+      clientId?: string;
+      autoJoin?: boolean;
+      defaultRole?: RoleValue;
+      isActive?: boolean;
+    },
+  ) {
+    return request<SsoConfig>(`/schools/${schoolId}/sso`, {
+      method: 'PATCH',
+      body: data,
+    });
+  },
+
+  // Integrasi & Pengaturan — Backup berlapis
+  backupConfig(schoolId: string) {
+    return request<BackupConfig>(`/schools/${schoolId}/backups/config`);
+  },
+  updateBackupConfig(
+    schoolId: string,
+    data: {
+      target?: BackupTargetValue;
+      scheduleCron?: string;
+      scope?: string;
+      retentionDays?: number;
+      isActive?: boolean;
+    },
+  ) {
+    return request<BackupConfig>(`/schools/${schoolId}/backups/config`, {
+      method: 'PATCH',
+      body: data,
+    });
+  },
+  runBackup(schoolId: string) {
+    return request<BackupJob>(`/schools/${schoolId}/backups/run`, {
+      method: 'POST',
+    });
+  },
+  backupJobs(schoolId: string) {
+    return request<BackupJob[]>(`/schools/${schoolId}/backups/jobs`);
+  },
+
+  // Integrasi & Pengaturan — API key
+  apiKeys(schoolId: string) {
+    return request<ApiKeyItem[]>(`/schools/${schoolId}/api-keys`);
+  },
+  createApiKey(schoolId: string, data: { name: string; scopes: string[] }) {
+    return request<ApiKeyCreated>(`/schools/${schoolId}/api-keys`, {
+      method: 'POST',
+      body: data,
+    });
+  },
+  revokeApiKey(id: string) {
+    return request<{ revoked: boolean }>(`/api-keys/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // Integrasi & Pengaturan — Webhook
+  webhooks(schoolId: string) {
+    return request<Webhook[]>(`/schools/${schoolId}/webhooks`);
+  },
+  createWebhook(schoolId: string, data: { url: string; events: string[] }) {
+    return request<WebhookCreated>(`/schools/${schoolId}/webhooks`, {
+      method: 'POST',
+      body: data,
+    });
+  },
+  deleteWebhook(id: string) {
+    return request<{ deleted: boolean }>(`/webhooks/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // Integrasi & Pengaturan — Agent on-prem
+  onpremAgents(schoolId: string) {
+    return request<OnpremAgent[]>(`/schools/${schoolId}/onprem/agents`);
+  },
+  registerOnpremAgent(data: {
+    schoolId: string;
+    name: string;
+    version?: string;
+  }) {
+    return request<OnpremAgentCreated>('/onprem/agents/register', {
+      method: 'POST',
+      body: data,
+    });
   },
 };

@@ -5,7 +5,7 @@ Suite **Playwright** untuk menguji sistem secara end-to-end. Dua project:
 | Project | Lokasi | Cakupan |
 |---|---|---|
 | `api` | `tests/api/` | End-to-end lewat HTTP API (`APIRequestContext`) |
-| `web` | `tests/web/` | Alur browser (Chromium): daftar → buat sekolah → tahun ajaran/semester/kelas → generate folder → unggah → legal hold → versioning; alur **E-Raport** (siswa → mapel → nilai → raport PDF); alur **E-Ijazah** (batch → terbitkan → verifikasi); alur **Keuangan/BOS** (unggah → arsip → ekspor ZIP); alur **OCR & Pencarian** (unggah teks → jalankan OCR → cari + facet → lihat teks); alur **Analitik** (metrik sekolah → opt-in → dasbor jaringan); proteksi rute; smoke halaman |
+| `web` | `tests/web/` | Alur browser (Chromium): daftar → buat sekolah → tahun ajaran/semester/kelas → generate folder → unggah → legal hold → versioning; alur **E-Raport** (siswa → mapel → nilai → raport PDF); alur **E-Ijazah** (batch → terbitkan → verifikasi); alur **Keuangan/BOS** (unggah → arsip → ekspor ZIP); alur **OCR & Pencarian** (unggah teks → jalankan OCR → cari + facet → lihat teks); alur **Analitik** (metrik sekolah → opt-in → dasbor jaringan); alur **Integrasi & Pengaturan** (simpan SSO → konfigurasi + jalankan backup → buat/cabut API key → webhook + validasi URL → daftar agent on-prem); proteksi rute; smoke halaman |
 
 ## Prasyarat
 
@@ -91,6 +91,7 @@ tests/
     ├── keuangan.spec.ts             # alur Keuangan/BOS di browser (unggah -> arsip -> ekspor ZIP)
     ├── pencarian.spec.ts            # alur OCR & Pencarian di browser (unggah teks -> OCR -> cari + facet)
     ├── analitik.spec.ts             # alur Analitik di browser (metrik sekolah -> opt-in -> dasbor jaringan)
+    ├── pengaturan.spec.ts           # alur Integrasi & Pengaturan (SSO, backup, API key, webhook, agent on-prem)
     └── versioning.spec.ts           # alur versioning di browser (catatan -> pulihkan -> bandingkan)
 ```
 

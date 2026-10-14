@@ -261,6 +261,7 @@ Frontend Next.js (App Router) sederhana untuk alur inti:
 | `/schools/[schoolId]/keuangan` | **Arsip Keuangan/BOS**: catat arsip keuangan bertaut dokumen, ringkasan per tahun ajaran, ekspor paket audit (ZIP) |
 | `/schools/[schoolId]/pencarian` | **OCR & Pencarian**: cari full-text ber-facet, jalankan pemrosesan OCR tertunda, lihat teks hasil ekstraksi |
 | `/schools/[schoolId]/analitik` | **Analitik Sekolah**: skor kepatuhan + riwayat, storage, dokumen mendekati retensi, tren unggahan, dokumen per jenis, dan opt-in berbagi metrik |
+| `/schools/[schoolId]/pengaturan` | **Integrasi & Pengaturan**: SSO Belajar.id, backup berlapis (config + jalankan + riwayat), API key (buat/cabut, kunci sekali tampil), webhook (event + secret), agent on-prem (daftar + token) |
 | `/analytics` | **Analitik Lintas Sekolah** (yayasan/dinas): agregat anonim sekolah opt-in |
 | `/verify/[serial]` | **Verifikasi publik ijazah** (tanpa login): valid/tidak + metadata |
 
@@ -275,6 +276,7 @@ Frontend Next.js (App Router) sederhana untuk alur inti:
 - Alur web (Keuangan/BOS): **unggah dokumen keuangan → catat arsip (kategori + nominal + dokumen) → ringkasan per tahun ajaran → ekspor paket audit (ZIP)**.
 - Alur web (Pencarian): **unggah berkas teks → jalankan OCR tertunda → cari kata kunci (facet jenis/tahun/tag) → lihat teks hasil ekstraksi**.
 - Alur web (Analitik): **halaman Analitik sekolah (skor/storage/retensi/tren) → ikut berbagi metrik (opt-in) → dasbor `/analytics` lintas sekolah (agregat anonim)**.
+- Alur web (Integrasi): **halaman Integrasi & Pengaturan → simpan SSO Belajar.id → konfigurasi + jalankan backup → buat API key / webhook / agent on-prem (token/secret sekali tampil)**. Pengaturan hanya untuk kepala sekolah/kepala TU; auditor melihat daftar tanpa aksi.
 
 ## Perintah Penting
 
@@ -311,7 +313,9 @@ Test E2E berada di `apps/e2e` (workspace `@arsip/e2e`) dan mencakup:
   verifikasi), alur **Arsip Keuangan/BOS** (catat → ringkasan → ekspor ZIP),
   alur **OCR & Pencarian** (unggah berkas teks → jalankan OCR → cari + facet →
   lihat teks hasil ekstraksi), alur **Analitik** (metrik sekolah → opt-in → dasbor
-  jaringan), proteksi rute, plus smoke halaman.
+  jaringan), alur **Integrasi & Pengaturan** (simpan SSO → konfigurasi + jalankan backup →
+  buat/cabut API key → webhook + validasi URL → daftar agent on-prem), proteksi rute,
+  plus smoke halaman.
 
 Playwright otomatis menjalankan API (`npm run start --workspace @arsip/api`) dan web
 (`npm run dev --workspace @arsip/web`) lewat `webServer`. Bila server sudah berjalan di
