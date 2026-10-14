@@ -226,6 +226,33 @@ export function FinancePanel({ schoolId }: { schoolId: string }) {
             </tbody>
           </table>
         )}
+
+        {summary && summary.byAcademicYear.length > 0 && (
+          <>
+            <h4 style={{ marginBottom: 8 }}>Per Tahun Ajaran</h4>
+            <table data-testid="finance-summary-year">
+              <thead>
+                <tr>
+                  <th>Tahun Ajaran</th>
+                  <th>Jumlah</th>
+                  <th>Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {summary.byAcademicYear.map((row) => (
+                  <tr
+                    key={row.academicYearId ?? 'tanpa-ta'}
+                    data-testid="finance-summary-year-row"
+                  >
+                    <td>{row.academicYearName ?? 'Tanpa tahun ajaran'}</td>
+                    <td>{row.count}</td>
+                    <td>{formatIdr(row.totalAmountIdr)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
+        )}
       </div>
 
       <div className="card">

@@ -142,10 +142,17 @@ export class FinanceService {
     if (dto.documentId) {
       const doc = await this.prisma.document.findUnique({
         where: { id: dto.documentId },
-        select: { schoolId: true },
+        select: { schoolId: true, deletedAt: true, purgedAt: true },
       });
       if (!doc || doc.schoolId !== schoolId) {
         throw new BadRequestException('Dokumen tidak valid untuk sekolah ini');
+      }
+      // Dokumen yang dihapus/dipurge tidak boleh ditautkan lagi; ekspor tidak
+      // akan mampu membaca berkasnya.
+      if (doc.deletedAt || doc.purgedAt) {
+        throw new BadRequestException(
+          'Dokumen sudah dihapus dan tidak dapat ditautkan',
+        );
       }
     }
 

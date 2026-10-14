@@ -2942,6 +2942,7 @@ components:
               properties:
                 fileName: { type: string }
                 sizeBytes: { type: string }
+                contentHash: { type: string }
     FinanceArchiveCreate:
       type: object
       required: [category]
@@ -2950,7 +2951,11 @@ components:
           type: string
           enum: [RKAS, SPJ, KUITANSI, LAPORAN_BOS, BUKU_KAS, PAJAK, LAINNYA]
         academicYearId: { type: string, format: uuid }
-        amountIdr: { type: number }
+        amountIdr:
+          type: number
+          minimum: 0
+          maximum: 1000000000000000
+          multipleOf: 0.01
         documentId: { type: string, format: uuid }
     FinanceSummary:
       type: object

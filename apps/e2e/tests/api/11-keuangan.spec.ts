@@ -253,4 +253,23 @@ test.describe('Arsip Keuangan/BOS', () => {
     expect(archive.document.id).toBe(document.id);
     expect(archive.amountIdr).toBeNull();
   });
+
+  test('dokumen yang sudah dihapus tidak dapat ditautkan (400)', async ({
+    request,
+  }) => {
+    const { user, school } = await financeSetup(request);
+    const documentId = await uploadDocument(request, user.token, school.id);
+
+    // Soft-delete dokumen, lalu coba tautkan ke arsip keuangan.
+    const del = await request.delete(`/documents/${documentId}`, {
+      headers: auth(user.token),
+    });
+    expect(del.ok()).toBeTruthy();
+
+    const res = await request.post(`/schools/${school.id}/finance/archives`, {
+      headers: auth(user.token),
+      data: { category: 'LAPORAN_BOS', documentId },
+    });
+    expect(res.status()).toBe(400);
+  });
 });

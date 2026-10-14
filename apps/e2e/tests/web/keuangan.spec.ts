@@ -78,6 +78,10 @@ test.describe('Alur web Arsip Keuangan/BOS', () => {
     await expect(page.getByTestId('finance-total-amount')).toContainText(
       '2.500.000',
     );
+    await expect(page.getByTestId('finance-summary-year')).toBeVisible();
+    await expect(
+      page.getByTestId('finance-summary-year-row'),
+    ).toContainText('Tanpa tahun ajaran');
 
     // Ekspor paket audit → browser mengunduh ZIP.
     const downloadPromise = page.waitForEvent('download');
