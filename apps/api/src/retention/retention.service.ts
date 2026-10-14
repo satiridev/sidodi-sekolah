@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { DocStatus, UserRole } from '@prisma/client';
+import { AuditAction, DocStatus, UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AccessService } from '../common/access.service';
 import { AuditService } from '../audit/audit.service';
@@ -130,7 +130,7 @@ export class RetentionService {
     const rule = await this.prisma.retentionRule.findUnique({ where: { id } });
     if (!rule) throw new NotFoundException('Aturan retensi tidak ditemukan');
     await this.access.assertRole(userId, rule.schoolId, ADMIN);
-    const updated = await this.prisma.retentionRule.update({
+    await this.prisma.retentionRule.update({
       where: { id },
       data: {
         documentTypeId: dto.documentTypeId,
@@ -141,6 +141,7 @@ export class RetentionService {
         isActive: dto.isActive,
       },
     });
+    const updated = await this.prisma.retentionRule.findUnique({ where: { id } });
     await this.audit.log({
       schoolId: rule.schoolId,
       actorUserId: userId,
@@ -241,6 +242,30 @@ export class RetentionService {
         data: { status: DocStatus.pending_deletion },
       });
       enqueued += 1;
+      try {
+        const daysLeft = doc.retentionExpiresAt
+          ? Math.ceil((doc.retentionExpiresAt.getTime() - now.getTime()) / 86400000)
+          : 0;
+        const stage = daysLeft <= 1 ? 1 : daysLeft <= 7 ? 7 : daysLeft <= 30 ? 30 : 0;
+        if (stage > 0) {
+          const existsNotif = await this.prisma.retentionNotification.findUnique({
+            where: { documentId_stage: { documentId: doc.id, stage } },
+          });
+          if (!existsNotif) {
+            await this.prisma.retentionNotification.create({
+              data: {
+                schoolId,
+                documentId: doc.id,
+                ruleId: null,
+                stage,
+                status: 'sent',
+                documentExpiresAt: doc.retentionExpiresAt,
+                recipientCount: 0,
+              },
+            });
+          }
+        }
+      } catch {}
     }
 
     await this.audit.log({
@@ -327,5 +352,73 @@ export class RetentionService {
       metadata: { rejected: true, reason: dto.reason },
     });
     return { success: true, status: 'rejected' };
+  }
+
+  /** Antre semua dokumen kedaluwarsa di sekolah ini. */
+  async enqueueAll(schoolId: string, userId: string, force = false) {
+    await this.access.assertRole(userId, schoolId, ADMIN);
+    return this.enqueueExpired(schoolId, userId);
+  }
+
+  /** Run scheduler untuk semua sekolah (atau sesuai konfigurasi). */
+  async runScheduler(userId: string) {
+    // Minimal: hanya admin sistem? Di sini cukup membership valid; but keep safe
+    const now = new Date();
+    const schools = await this.prisma.school.findMany({
+      where: { deletedAt: null, status: 'active', retentionAutoEnqueue: true },
+      select: { id: true },
+    });
+    let totalEnqueued = 0;
+    let totalScanned = 0;
+    for (const s of schools) {
+      const r = await this.enqueueExpiredInternal(s.id);
+      totalEnqueued += r.enqueued;
+      totalScanned += r.scanned;
+    }
+    await this.audit.log({
+      schoolId: null,
+      actorUserId: userId,
+      action: AuditAction.update,
+      entityType: 'RetentionScheduler',
+      metadata: { totalEnqueued, totalScanned, ranAt: now },
+    } as any);
+    return { ranAt: now, schools: schools.length, totalEnqueued, totalScanned };
+  }
+
+  private async enqueueExpiredInternal(schoolId: string) {
+    const now = new Date();
+    const expired = await this.prisma.document.findMany({
+      where: {
+        schoolId,
+        deletedAt: null,
+        purgedAt: null,
+        isLegalHold: false,
+        retentionExpiresAt: { lte: now },
+        status: 'active',
+      },
+      take: 1000,
+    });
+    let enqueued = 0;
+    for (const doc of expired) {
+      const existing = await this.prisma.purgeQueue.findFirst({
+        where: { documentId: doc.id, status: { in: ['pending', 'scheduled'] } },
+      });
+      if (existing) continue;
+      await this.prisma.purgeQueue.create({
+        data: {
+          schoolId,
+          documentId: doc.id,
+          reason: 'retention_expired',
+          scheduledPurgeAt: now,
+          triggeredBy: 'auto',
+        },
+      });
+      await this.prisma.document.update({
+        where: { id: doc.id },
+        data: { status: DocStatus.pending_deletion },
+      });
+      enqueued += 1;
+    }
+    return { scanned: expired.length, enqueued };
   }
 }

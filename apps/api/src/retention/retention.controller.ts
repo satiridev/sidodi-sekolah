@@ -87,6 +87,21 @@ export class RetentionController {
     return this.retention.enqueueExpired(schoolId, user.id);
   }
 
+  @Post('schools/:schoolId/retention/enqueue-all')
+  enqueueAll(
+    @Param('schoolId') schoolId: string,
+    @CurrentUser() user: JwtUser,
+    @Query('force') force?: string,
+  ) {
+    return this.retention.enqueueAll(schoolId, user.id, force === 'true');
+  }
+
+  @Post('retention/scheduler/run')
+  @UseGuards(JwtAuthGuard)
+  runScheduler(@CurrentUser() user: JwtUser) {
+    return this.retention.runScheduler(user.id);
+  }
+
   @Post('purge-queue/:id/approve')
   approve(
     @Param('id') id: string,

@@ -225,52 +225,54 @@ model Plan {
 }
 
 model School {
-  id                String       @id @default(uuid()) @db.Uuid
-  name              String
-  slug              String       @unique
-  npsn              String?
-  address           String?
-  city              String?
-  province          String?
-  phone             String?
-  email             String?
-  logoUrl           String?      @map("logo_url")
-  planCode          PlanCode     @default(trial) @map("plan_code")
-  storageQuotaBytes BigInt       @map("storage_quota_bytes")
-  storageUsedBytes  BigInt       @default(0) @map("storage_used_bytes")
-  maxFileSizeBytes  BigInt       @default(104857600) @map("max_file_size_bytes")
-  status            SchoolStatus @default(active)
-  analyticsOptIn    Boolean      @default(false) @map("analytics_opt_in")
-  createdAt         DateTime     @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt         DateTime     @updatedAt @map("updated_at") @db.Timestamptz
-  deletedAt         DateTime?    @map("deleted_at") @db.Timestamptz
+  id                   String       @id @default(uuid()) @db.Uuid
+  name                 String
+  slug                 String       @unique
+  npsn                 String?
+  address              String?
+  city                 String?
+  province             String?
+  phone                String?
+  email                String?
+  logoUrl              String?      @map("logo_url")
+  planCode             PlanCode     @default(trial) @map("plan_code")
+  storageQuotaBytes    BigInt       @map("storage_quota_bytes")
+  storageUsedBytes     BigInt       @default(0) @map("storage_used_bytes")
+  maxFileSizeBytes     BigInt       @default(104857600) @map("max_file_size_bytes")
+  status               SchoolStatus @default(active)
+  analyticsOptIn       Boolean      @default(false) @map("analytics_opt_in")
+  retentionAutoEnqueue Boolean      @default(true) @map("retention_auto_enqueue")
+  createdAt            DateTime     @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt            DateTime     @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt            DateTime?    @map("deleted_at") @db.Timestamptz
 
-  subscriptions       Subscription[]
-  memberships         Membership[]
-  skDocuments         SKDocument[]
-  academicYears       AcademicYear[]
-  classrooms          Classroom[]
-  documentTypes       DocumentType[]
-  folders             Folder[]
-  documents           Document[]
-  uploadSessions      UploadSession[]
-  shareLinks          ShareLink[]
-  purgeQueue          PurgeQueue[]
-  auditLogs           AuditLog[]
-  notifications       Notification[]
-  complianceSnapshots ComplianceSnapshot[]
-  ssoConfigs          SchoolSsoConfig[]
-  backupConfigs       BackupConfig[]
-  backupJobs          BackupJob[]
-  onpremAgents        OnpremAgent[]
-  retentionRules      RetentionRule[]
-  students            Student[]
-  subjects            Subject[]
-  eijazahBatches      EijazahBatch[]
-  financeArchives     FinanceArchive[]
-  apiKeys             ApiKey[]
-  webhooks            Webhook[]
-  dapodikSyncs        DapodikSync[]
+  subscriptions          Subscription[]
+  memberships            Membership[]
+  skDocuments            SKDocument[]
+  academicYears          AcademicYear[]
+  classrooms             Classroom[]
+  documentTypes          DocumentType[]
+  folders                Folder[]
+  documents              Document[]
+  uploadSessions         UploadSession[]
+  shareLinks             ShareLink[]
+  purgeQueue             PurgeQueue[]
+  auditLogs              AuditLog[]
+  notifications          Notification[]
+  complianceSnapshots    ComplianceSnapshot[]
+  ssoConfigs             SchoolSsoConfig[]
+  backupConfigs          BackupConfig[]
+  backupJobs             BackupJob[]
+  onpremAgents           OnpremAgent[]
+  retentionRules         RetentionRule[]
+  retentionNotifications RetentionNotification[]
+  students               Student[]
+  subjects               Subject[]
+  eijazahBatches         EijazahBatch[]
+  financeArchives        FinanceArchive[]
+  apiKeys                ApiKey[]
+  webhooks               Webhook[]
+  dapodikSyncs           DapodikSync[]
 
   @@map("schools")
 }
@@ -330,8 +332,8 @@ model Membership {
   createdAt           DateTime         @default(now()) @map("created_at") @db.Timestamptz
   updatedAt           DateTime         @updatedAt @map("updated_at") @db.Timestamptz
 
-  school   School @relation(fields: [schoolId], references: [id])
-  user     User   @relation(fields: [userId], references: [id])
+  school School @relation(fields: [schoolId], references: [id])
+  user   User   @relation(fields: [userId], references: [id])
 
   skDocuments        SKDocument[]      @relation("SKUploader")
   ownedDocuments     Document[]        @relation("DocumentOwner")
@@ -347,15 +349,15 @@ model Membership {
 }
 
 model SKDocument {
-  id                     String    @id @default(uuid()) @db.Uuid
-  schoolId               String    @map("school_id") @db.Uuid
+  id                     String   @id @default(uuid()) @db.Uuid
+  schoolId               String   @map("school_id") @db.Uuid
   title                  String
   number                 String?
-  issuedDate             DateTime  @map("issued_date") @db.Date
-  storageKey             String    @map("storage_key")
-  uploadedByMembershipId String?   @map("uploaded_by_membership_id") @db.Uuid
-  isActive               Boolean   @default(true) @map("is_active")
-  createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  issuedDate             DateTime @map("issued_date") @db.Date
+  storageKey             String   @map("storage_key")
+  uploadedByMembershipId String?  @map("uploaded_by_membership_id") @db.Uuid
+  isActive               Boolean  @default(true) @map("is_active")
+  createdAt              DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   school     School      @relation(fields: [schoolId], references: [id])
   uploadedBy Membership? @relation("SKUploader", fields: [uploadedByMembershipId], references: [id])
@@ -377,15 +379,15 @@ model AcademicYear {
   isActive  Boolean  @default(false) @map("is_active")
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
 
-  school     School @relation(fields: [schoolId], references: [id])
+  school     School      @relation(fields: [schoolId], references: [id])
   semesters  Semester[]
   classrooms Classroom[]
   folders    Folder[]
 
-  eijazahBatches     EijazahBatch[]
-  financeArchives    FinanceArchive[]
-  reportCards        ReportCard[]
-  studentClassrooms  StudentClassroom[]
+  eijazahBatches    EijazahBatch[]
+  financeArchives   FinanceArchive[]
+  reportCards       ReportCard[]
+  studentClassrooms StudentClassroom[]
 
   @@unique([schoolId, name])
   @@map("academic_years")
@@ -485,38 +487,39 @@ model Folder {
 }
 
 model Document {
-  id                 String               @id @default(uuid()) @db.Uuid
-  schoolId           String               @map("school_id") @db.Uuid
-  folderId           String?              @map("folder_id") @db.Uuid
-  documentTypeId     String?              @map("document_type_id") @db.Uuid
+  id                 String             @id @default(uuid()) @db.Uuid
+  schoolId           String             @map("school_id") @db.Uuid
+  folderId           String?            @map("folder_id") @db.Uuid
+  documentTypeId     String?            @map("document_type_id") @db.Uuid
   title              String
   description        String?
-  ownerMembershipId  String?              @map("owner_membership_id") @db.Uuid
-  visibility         DocumentVisibility   @default(school)
+  ownerMembershipId  String?            @map("owner_membership_id") @db.Uuid
+  visibility         DocumentVisibility @default(school)
   tags               String[]
-  retentionType      RetentionType        @map("retention_type")
-  retentionExpiresAt DateTime?            @map("retention_expires_at") @db.Timestamptz
-  status             DocStatus            @default(active)
-  currentVersionId   String?              @unique @map("current_version_id") @db.Uuid
-  isLegalHold        Boolean              @default(false) @map("is_legal_hold")
-  legalHoldReason    String?              @map("legal_hold_reason")
-  legalHoldBy        String?              @map("legal_hold_by") @db.Uuid
-  legalHoldAt        DateTime?            @map("legal_hold_at") @db.Timestamptz
-  createdAt          DateTime             @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt          DateTime             @updatedAt @map("updated_at") @db.Timestamptz
-  deletedAt          DateTime?            @map("deleted_at") @db.Timestamptz
-  purgedAt           DateTime?            @map("purged_at") @db.Timestamptz
+  retentionType      RetentionType      @map("retention_type")
+  retentionExpiresAt DateTime?          @map("retention_expires_at") @db.Timestamptz
+  status             DocStatus          @default(active)
+  currentVersionId   String?            @unique @map("current_version_id") @db.Uuid
+  isLegalHold        Boolean            @default(false) @map("is_legal_hold")
+  legalHoldReason    String?            @map("legal_hold_reason")
+  legalHoldBy        String?            @map("legal_hold_by") @db.Uuid
+  legalHoldAt        DateTime?          @map("legal_hold_at") @db.Timestamptz
+  createdAt          DateTime           @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt          DateTime           @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt          DateTime?          @map("deleted_at") @db.Timestamptz
+  purgedAt           DateTime?          @map("purged_at") @db.Timestamptz
 
-  school         School          @relation(fields: [schoolId], references: [id])
-  folder         Folder?         @relation(fields: [folderId], references: [id])
-  documentType   DocumentType?   @relation(fields: [documentTypeId], references: [id])
-  owner          Membership?     @relation("DocumentOwner", fields: [ownerMembershipId], references: [id])
-  currentVersion DocumentVersion? @relation("DocumentCurrentVersion", fields: [currentVersionId], references: [id])
+  school         School            @relation(fields: [schoolId], references: [id])
+  folder         Folder?           @relation(fields: [folderId], references: [id])
+  documentType   DocumentType?     @relation(fields: [documentTypeId], references: [id])
+  owner          Membership?       @relation("DocumentOwner", fields: [ownerMembershipId], references: [id])
+  currentVersion DocumentVersion?  @relation("DocumentCurrentVersion", fields: [currentVersionId], references: [id])
   versions       DocumentVersion[] @relation("DocumentVersions")
 
-  purgeQueue      PurgeQueue[]
-  shareLinks      ShareLink[]
-  financeArchives FinanceArchive[]
+  purgeQueue             PurgeQueue[]
+  shareLinks             ShareLink[]
+  financeArchives        FinanceArchive[]
+  retentionNotifications RetentionNotification[]
 
   @@index([schoolId, status])
   @@index([schoolId, folderId])
@@ -525,22 +528,22 @@ model Document {
 }
 
 model DocumentVersion {
-  id                     String     @id @default(uuid()) @db.Uuid
-  documentId             String     @map("document_id") @db.Uuid
-  versionNumber          Int        @map("version_number")
-  storageKey             String     @map("storage_key")
-  fileName               String     @map("file_name")
-  mimeType               String     @map("mime_type")
+  id                     String                   @id @default(uuid()) @db.Uuid
+  documentId             String                   @map("document_id") @db.Uuid
+  versionNumber          Int                      @map("version_number")
+  storageKey             String                   @map("storage_key")
+  fileName               String                   @map("file_name")
+  mimeType               String                   @map("mime_type")
   extension              String
-  sizeBytes              BigInt     @map("size_bytes")
-  contentHash            String     @map("content_hash")
-  scanStatus             ScanStatus @default(pending) @map("scan_status")
-  uploadedByMembershipId String?    @map("uploaded_by_membership_id") @db.Uuid
-  changeNote             String?    @map("change_note")
-  ocrText                String?    @map("ocr_text")
-  ocrStatus              OcrStatus  @default(pending) @map("ocr_status")
+  sizeBytes              BigInt                   @map("size_bytes")
+  contentHash            String                   @map("content_hash")
+  scanStatus             ScanStatus               @default(pending) @map("scan_status")
+  uploadedByMembershipId String?                  @map("uploaded_by_membership_id") @db.Uuid
+  changeNote             String?                  @map("change_note")
+  ocrText                String?                  @map("ocr_text")
+  ocrStatus              OcrStatus                @default(pending) @map("ocr_status")
   searchVector           Unsupported("tsvector")? @map("search_vector")
-  createdAt              DateTime   @default(now()) @map("created_at") @db.Timestamptz
+  createdAt              DateTime                 @default(now()) @map("created_at") @db.Timestamptz
 
   document           Document    @relation("DocumentVersions", fields: [documentId], references: [id])
   uploadedBy         Membership? @relation("VersionUploader", fields: [uploadedByMembershipId], references: [id])
@@ -553,21 +556,21 @@ model DocumentVersion {
 }
 
 model UploadSession {
-  id           String       @id @default(uuid()) @db.Uuid
-  schoolId     String       @map("school_id") @db.Uuid
-  membershipId String?      @map("membership_id") @db.Uuid
-  s3UploadId   String?      @map("s3_upload_id")
-  fileName     String       @map("file_name")
-  mimeType     String       @map("mime_type")
-  sizeBytes    BigInt       @map("size_bytes")
-  status       UploadStatus @default(initiated)
-  documentId   String?      @map("document_id") @db.Uuid
-  folderId     String?      @map("folder_id") @db.Uuid
-  documentTypeId String?    @map("document_type_id") @db.Uuid
-  title        String?
-  changeNote   String?      @map("change_note")
-  createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt    DateTime     @updatedAt @map("updated_at") @db.Timestamptz
+  id             String       @id @default(uuid()) @db.Uuid
+  schoolId       String       @map("school_id") @db.Uuid
+  membershipId   String?      @map("membership_id") @db.Uuid
+  s3UploadId     String?      @map("s3_upload_id")
+  fileName       String       @map("file_name")
+  mimeType       String       @map("mime_type")
+  sizeBytes      BigInt       @map("size_bytes")
+  status         UploadStatus @default(initiated)
+  documentId     String?      @map("document_id") @db.Uuid
+  folderId       String?      @map("folder_id") @db.Uuid
+  documentTypeId String?      @map("document_type_id") @db.Uuid
+  title          String?
+  changeNote     String?      @map("change_note")
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime     @updatedAt @map("updated_at") @db.Timestamptz
 
   school     School      @relation(fields: [schoolId], references: [id])
   membership Membership? @relation(fields: [membershipId], references: [id])
@@ -742,16 +745,16 @@ model BackupConfig {
 }
 
 model BackupJob {
-  id             String        @id @default(uuid()) @db.Uuid
-  schoolId       String        @map("school_id") @db.Uuid
-  backupConfigId String?       @map("backup_config_id") @db.Uuid
-  status         BackupStatus  @default(queued)
-  startedAt      DateTime?     @map("started_at") @db.Timestamptz
-  finishedAt     DateTime?     @map("finished_at") @db.Timestamptz
-  sizeBytes      BigInt?       @map("size_bytes")
+  id             String       @id @default(uuid()) @db.Uuid
+  schoolId       String       @map("school_id") @db.Uuid
+  backupConfigId String?      @map("backup_config_id") @db.Uuid
+  status         BackupStatus @default(queued)
+  startedAt      DateTime?    @map("started_at") @db.Timestamptz
+  finishedAt     DateTime?    @map("finished_at") @db.Timestamptz
+  sizeBytes      BigInt?      @map("size_bytes")
   checksum       String?
   error          String?
-  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz
 
   school       School        @relation(fields: [schoolId], references: [id])
   backupConfig BackupConfig? @relation(fields: [backupConfigId], references: [id])
@@ -814,12 +817,34 @@ model RetentionRule {
   createdAt        DateTime        @default(now()) @map("created_at") @db.Timestamptz
   updatedAt        DateTime        @updatedAt @map("updated_at") @db.Timestamptz
 
-  school       School        @relation(fields: [schoolId], references: [id])
-  documentType DocumentType? @relation(fields: [documentTypeId], references: [id])
-  purgeQueue   PurgeQueue[]
+  school        School                  @relation(fields: [schoolId], references: [id])
+  documentType  DocumentType?           @relation(fields: [documentTypeId], references: [id])
+  purgeQueue    PurgeQueue[]
+  notifications RetentionNotification[]
 
   @@index([schoolId])
   @@map("retention_rules")
+}
+
+model RetentionNotification {
+  id                String    @id @default(uuid()) @db.Uuid
+  schoolId          String    @map("school_id") @db.Uuid
+  documentId        String    @map("document_id") @db.Uuid
+  ruleId            String?   @map("rule_id") @db.Uuid
+  stage             Int
+  status            String    @default("sent")
+  documentExpiresAt DateTime? @map("document_expires_at") @db.Timestamptz
+  recipientRoles    String[]  @default(["headmaster", "head_of_administration"]) @map("recipient_roles")
+  recipientCount    Int       @default(0) @map("recipient_count")
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  school   School         @relation(fields: [schoolId], references: [id])
+  document Document       @relation(fields: [documentId], references: [id])
+  rule     RetentionRule? @relation(fields: [ruleId], references: [id])
+
+  @@unique([documentId, stage])
+  @@index([schoolId, status])
+  @@map("retention_notifications")
 }
 
 // ============================================================
@@ -838,10 +863,10 @@ model Student {
   createdAt DateTime      @default(now()) @map("created_at") @db.Timestamptz
   updatedAt DateTime      @updatedAt @map("updated_at") @db.Timestamptz
 
-  school             School              @relation(fields: [schoolId], references: [id])
-  classrooms         StudentClassroom[]
-  grades             Grade[]
-  reportCards        ReportCard[]
+  school              School               @relation(fields: [schoolId], references: [id])
+  classrooms          StudentClassroom[]
+  grades              Grade[]
+  reportCards         ReportCard[]
   eijazahCertificates EijazahCertificate[]
 
   @@index([schoolId, status])
@@ -927,8 +952,8 @@ model EijazahBatch {
   status         String   @default("draft")
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
 
-  school       School                @relation(fields: [schoolId], references: [id])
-  academicYear AcademicYear          @relation(fields: [academicYearId], references: [id])
+  school       School               @relation(fields: [schoolId], references: [id])
+  academicYear AcademicYear         @relation(fields: [academicYearId], references: [id])
   certificates EijazahCertificate[]
 
   @@index([schoolId])

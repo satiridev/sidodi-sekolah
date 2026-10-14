@@ -1159,6 +1159,52 @@ paths:
       summary: Jadwalkan pemusnahan
       responses:
         '200': { description: Scheduled }
+  /schools/{schoolId}/retention/enqueue:
+    parameters: [{ $ref: '#/components/parameters/SchoolIdPath' }]
+    post:
+      tags: [Retention]
+      summary: Enqueue dokumen kedaluwarsa (manual)
+      responses:
+        '201':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  scanned: { type: integer }
+                  enqueued: { type: integer }
+  /schools/{schoolId}/retention/enqueue-all:
+    parameters: [{ $ref: '#/components/parameters/SchoolIdPath' }]
+    post:
+      tags: [Retention]
+      summary: Enqueue semua dokumen kedaluwarsa
+      responses:
+        '201':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  scanned: { type: integer }
+                  enqueued: { type: integer }
+  /retention/scheduler/run:
+    post:
+      tags: [Retention]
+      summary: Jalankan scheduler otomatis
+      responses:
+        '201':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ranAt: { type: string, format: date-time }
+                  schools: { type: integer }
+                  totalEnqueued: { type: integer }
+                  totalScanned: { type: integer }
   /documents/{id}/cancel-purge:
     parameters: [{ $ref: '#/components/parameters/IdPath' }]
     post:
