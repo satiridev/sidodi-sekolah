@@ -23,6 +23,11 @@ import { AnalyticsModule } from './analytics/analytics.module';
 import { SsoModule } from './sso/sso.module';
 import { SearchModule } from './search/search.module';
 import { OcrModule } from './ocr/ocr.module';
+import { BackupsModule } from './backups/backups.module';
+import { OnpremModule } from './onprem/onprem.module';
+import { IntegrationsModule } from './integrations/integrations.module';
+import { ApiKeysModule } from './api-keys/api-keys.module';
+import { WebhooksModule } from './webhooks/webhooks.module';
 
 @Module({
   imports: [
@@ -52,6 +57,11 @@ import { OcrModule } from './ocr/ocr.module';
     SsoModule,
     SearchModule,
     OcrModule,
+    BackupsModule,
+    OnpremModule,
+    IntegrationsModule,
+    ApiKeysModule,
+    WebhooksModule,
   ],
 })
 export class AppModule {}
