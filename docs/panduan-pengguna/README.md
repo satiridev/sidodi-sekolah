@@ -145,3 +145,17 @@ Berkas terkait:
 - `apps/e2e/tests/docs/panduan.spec.ts` — skenario tangkapan layar per peran.
 - `apps/e2e/tests/docs/provision.ts` — penyiapan data demo.
 - `apps/e2e/playwright.screenshots.config.ts` — konfigurasi khusus generator.
+
+## Versi HTML (gambar disematkan)
+
+Setiap berkas Markdown di folder ini juga tersedia sebagai **HTML mandiri**: gambar
+disematkan sebagai data URI (base64), sehingga tiap berkas dapat dibuka atau
+dibagikan tanpa folder `gambar/`.
+
+- `README.html`, `kepala-sekolah.html`, `kepala-tu.html`, `operator.html`, `guru.html`, `auditor.html`
+
+Bangkitkan ulang setelah panduan atau tangkapan layar diperbarui:
+
+```bash
+npm run docs:html
+```
