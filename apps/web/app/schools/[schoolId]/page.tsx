@@ -49,6 +49,17 @@ function TreeList({ nodes }: { nodes: FolderNode[] }) {
 
 const LEGAL_HOLD_ROLES = ['headmaster', 'head_of_administration', 'auditor'];
 
+/** Peran yang boleh melihat skor kepatuhan (selaras dengan API). */
+const COMPLIANCE_ROLES = [
+  'headmaster',
+  'head_of_administration',
+  'auditor',
+  'operator',
+];
+
+/** Peran yang boleh melihat jejak audit (selaras dengan API). */
+const AUDIT_ROLES = ['headmaster', 'head_of_administration', 'auditor'];
+
 export default function SchoolPage() {
   const router = useRouter();
   const params = useParams<{ schoolId: string }>();
@@ -56,6 +67,8 @@ export default function SchoolPage() {
   const { ready, user, roleInSchool, logout } = useAuth();
   const role = roleInSchool(schoolId);
   const canManageLegalHold = role !== null && LEGAL_HOLD_ROLES.includes(role);
+  const canViewCompliance = role !== null && COMPLIANCE_ROLES.includes(role);
+  const canViewAudit = role !== null && AUDIT_ROLES.includes(role);
 
   const [school, setSchool] = useState<School | null>(null);
   const [docTypes, setDocTypes] = useState<DocumentType[]>([]);
@@ -89,32 +102,41 @@ export default function SchoolPage() {
   const load = useCallback(async () => {
     if (!schoolId) return;
     setError(null);
-    try {
-      const [schoolData, types, treeData, docData, score, storageData, logs, ruleList] =
-        await Promise.all([
-          api.getSchool(schoolId),
-          api.documentTypes(schoolId),
-          api.folderTree(schoolId),
-          api.documents(schoolId),
-          api.compliance(schoolId),
-          api.storage(schoolId),
-          api.auditLogs(schoolId),
-          api.retentionRules(schoolId),
-        ]);
-      setSchool(schoolData);
-      setDocTypes(types);
-      setTree(treeData);
-      setDocs(docData.items);
-      setCompliance(score);
-      setStorage(storageData);
-      setAuditLogs(logs.data);
-      setRules(ruleList);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Gagal memuat data sekolah');
-    } finally {
-      setLoading(false);
+    // Setiap bagian dimuat independen: kegagalan satu resource (mis. peran guru
+    // tidak boleh melihat skor kepatuhan/jejak audit) tidak mengosongkan seluruh
+    // halaman. Resource yang tidak diizinkan untuk peran ini tidak dipanggil.
+    const settled = await Promise.allSettled([
+      api.getSchool(schoolId),
+      api.documentTypes(schoolId),
+      api.folderTree(schoolId),
+      api.documents(schoolId),
+      canViewCompliance ? api.compliance(schoolId) : Promise.resolve(null),
+      api.storage(schoolId),
+      canViewAudit ? api.auditLogs(schoolId) : Promise.resolve(null),
+      api.retentionRules(schoolId),
+    ]);
+    const value = <T,>(index: number, fallback: T): T => {
+      const result = settled[index];
+      return result.status === 'fulfilled'
+        ? ((result.value as T | null) ?? fallback)
+        : fallback;
+    };
+
+    setSchool(value<School | null>(0, null));
+    setDocTypes(value<DocumentType[]>(1, []));
+    setTree(value<FolderNode[]>(2, []));
+    setDocs(value<{ items: DocumentItem[] } | null>(3, null)?.items ?? []);
+    setCompliance(value<ComplianceScore | null>(4, null));
+    setStorage(value<StorageInfo | null>(5, null));
+    setAuditLogs(value<{ data: AuditLogEntry[] } | null>(6, null)?.data ?? []);
+    setRules(value<RetentionRule[]>(7, []));
+
+    if (settled[0].status === 'rejected') {
+      const reason = settled[0].reason;
+      setError(reason instanceof ApiError ? reason.message : 'Gagal memuat data sekolah');
     }
-  }, [schoolId]);
+    setLoading(false);
+  }, [schoolId, canViewCompliance, canViewAudit]);
 
   useEffect(() => {
     if (ready && !user) {
@@ -127,14 +149,14 @@ export default function SchoolPage() {
   async function refreshAfterMutation() {
     const [docData, score, storageData, logs] = await Promise.all([
       api.documents(schoolId),
-      api.compliance(schoolId),
+      canViewCompliance ? api.compliance(schoolId) : Promise.resolve(null),
       api.storage(schoolId),
-      api.auditLogs(schoolId),
+      canViewAudit ? api.auditLogs(schoolId) : Promise.resolve(null),
     ]);
     setDocs(docData.items);
     setCompliance(score);
     setStorage(storageData);
-    setAuditLogs(logs.data);
+    setAuditLogs(logs?.data ?? []);
   }
 
   async function onGenerateFolders() {
@@ -149,7 +171,7 @@ export default function SchoolPage() {
           : 'Struktur folder sudah lengkap.',
       );
       setTree(await api.folderTree(schoolId));
-      setAuditLogs((await api.auditLogs(schoolId)).data);
+      if (canViewAudit) setAuditLogs((await api.auditLogs(schoolId)).data);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Gagal generate folder');
     } finally {
@@ -308,21 +330,23 @@ export default function SchoolPage() {
       )}
 
       <div className="grid">
-        <div className="card">
-          <h3>Skor Kepatuhan</h3>
-          <div
-            className="score"
-            data-testid="compliance-score"
-            data-status={compliance?.status}
-          >
-            {compliance ? compliance.score.toFixed(2) : '-'}
+        {canViewCompliance && (
+          <div className="card">
+            <h3>Skor Kepatuhan</h3>
+            <div
+              className="score"
+              data-testid="compliance-score"
+              data-status={compliance?.status}
+            >
+              {compliance ? compliance.score.toFixed(2) : '-'}
+            </div>
+            {compliance && (
+              <span className={`badge badge-${compliance.status}`}>
+                {compliance.status.replace(/_/g, ' ')}
+              </span>
+            )}
           </div>
-          {compliance && (
-            <span className={`badge badge-${compliance.status}`}>
-              {compliance.status.replace(/_/g, ' ')}
-            </span>
-          )}
-        </div>
+        )}
 
         <div className="card">
           <h3>Penyimpanan</h3>
@@ -548,35 +572,37 @@ export default function SchoolPage() {
 
       <VersionPanel documents={docs} />
 
-      <div className="card">
-        <h3>Jejak Audit (Terbaru)</h3>
-        {auditLogs.length === 0 ? (
-          <p className="empty" data-testid="audit-empty">
-            Belum ada aktivitas tercatat.
-          </p>
-        ) : (
-          <table data-testid="audit-log-list">
-            <thead>
-              <tr>
-                <th>Waktu</th>
-                <th>Aksi</th>
-                <th>Entitas</th>
-                <th>Aktor</th>
-              </tr>
-            </thead>
-            <tbody>
-              {auditLogs.map((log) => (
-                <tr key={log.id} data-testid="audit-log-row">
-                  <td>{formatDateTime(log.createdAt)}</td>
-                  <td>{log.action}</td>
-                  <td>{log.entityType}</td>
-                  <td>{log.actorUser?.name ?? 'sistem'}</td>
+      {canViewAudit && (
+        <div className="card">
+          <h3>Jejak Audit (Terbaru)</h3>
+          {auditLogs.length === 0 ? (
+            <p className="empty" data-testid="audit-empty">
+              Belum ada aktivitas tercatat.
+            </p>
+          ) : (
+            <table data-testid="audit-log-list">
+              <thead>
+                <tr>
+                  <th>Waktu</th>
+                  <th>Aksi</th>
+                  <th>Entitas</th>
+                  <th>Aktor</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+              </thead>
+              <tbody>
+                {auditLogs.map((log) => (
+                  <tr key={log.id} data-testid="audit-log-row">
+                    <td>{formatDateTime(log.createdAt)}</td>
+                    <td>{log.action}</td>
+                    <td>{log.entityType}</td>
+                    <td>{log.actorUser?.name ?? 'sistem'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
 
       <div className="card">
         <h3>Aturan Retensi Otomatis ({rules.length})</h3>
