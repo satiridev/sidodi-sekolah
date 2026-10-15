@@ -277,6 +277,7 @@ Frontend Next.js (App Router) sederhana untuk alur inti:
 - Alur web (Pencarian): **unggah berkas teks → jalankan OCR tertunda → cari kata kunci (facet jenis/tahun/tag) → lihat teks hasil ekstraksi**.
 - Alur web (Analitik): **halaman Analitik sekolah (skor/storage/retensi/tren) → ikut berbagi metrik (opt-in) → dasbor `/analytics` lintas sekolah (agregat anonim)**.
 - Alur web (Integrasi): **halaman Integrasi & Pengaturan → simpan SSO Belajar.id → konfigurasi + jalankan backup → buat API key / webhook / agent on-prem (token/secret sekali tampil)**. Pengaturan hanya untuk kepala sekolah/kepala TU; auditor melihat daftar tanpa aksi.
+- Halaman sekolah menyesuaikan peran: panel **Skor Kepatuhan** (kepala sekolah/kepala TU/operator/auditor) dan **Jejak Audit** (kepala sekolah/kepala TU/auditor) hanya dimuat untuk peran yang berhak. Permintaan tiap bagian bersifat independen sehingga peran tanpa akses (mis. guru) tetap melihat halaman utuh, bukan halaman kosong.
 
 ## Perintah Penting
 
@@ -293,6 +294,7 @@ Frontend Next.js (App Router) sederhana untuk alur inti:
 | `npm run test:e2e` | Jalankan semua test E2E (API + web) |
 | `npm run test:e2e:api` | Test E2E API saja |
 | `npm run test:e2e:web` | Test E2E browser (web) saja |
+| `npm run docs:screenshots --workspace @arsip/e2e` | Buat ulang tangkapan layar panduan pengguna |
 
 ## Test End-to-End (Playwright)
 
@@ -341,6 +343,31 @@ Prasyarat: PostgreSQL berjalan dengan migrasi + seed sudah diterapkan (lihat
 Test bersifat mandiri (setiap test membuat user & sekolah unik) sehingga dapat
 dijalankan berulang tanpa reset database. Detail selengkapnya ada di
 `apps/e2e/README.md`.
+
+## Panduan Pengguna per Peran
+
+Dokumentasi cara pakai untuk **setiap jenis pengguna** ada di
+[`docs/panduan-pengguna/`](docs/panduan-pengguna/README.md), lengkap dengan matriks
+hak akses (RBAC) dan tangkapan layar:
+
+| Peran | Panduan |
+|---|---|
+| Kepala Sekolah (`headmaster`) | [kepala-sekolah.md](docs/panduan-pengguna/kepala-sekolah.md) |
+| Kepala Tata Usaha (`head_of_administration`) | [kepala-tu.md](docs/panduan-pengguna/kepala-tu.md) |
+| Operator (`operator`) | [operator.md](docs/panduan-pengguna/operator.md) |
+| Guru (`teacher`) | [guru.md](docs/panduan-pengguna/guru.md) |
+| Auditor (`auditor`) | [auditor.md](docs/panduan-pengguna/auditor.md) |
+
+Tangkapan layar dihasilkan dengan **Playwright** dari aplikasi yang berjalan
+(generator `apps/e2e/tests/docs/`). Buat ulang kapan pun:
+
+```bash
+npm run docs:screenshots --workspace @arsip/e2e
+```
+
+Generator menyiapkan sekolah demo beserta 5 akun peran (data idempoten), memotret
+halaman tiap peran, dan memverifikasi bahwa halaman tidak menampilkan galat serta
+panel role-specific muncul sesuai hak akses.
 
 ## Catatan Kepatuhan
 

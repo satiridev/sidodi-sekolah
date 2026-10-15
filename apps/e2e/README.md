@@ -1,11 +1,12 @@
 # E2E Test — Arsip Digital Sekolah
 
-Suite **Playwright** untuk menguji sistem secara end-to-end. Dua project:
+Suite **Playwright** untuk menguji sistem secara end-to-end. Tiga project:
 
-| Project | Lokasi | Cakupan |
-|---|---|---|
-| `api` | `tests/api/` | End-to-end lewat HTTP API (`APIRequestContext`) |
-| `web` | `tests/web/` | Alur browser (Chromium): daftar → buat sekolah → tahun ajaran/semester/kelas → generate folder → unggah → legal hold → versioning; alur **E-Raport** (siswa → mapel → nilai → raport PDF); alur **E-Ijazah** (batch → terbitkan → verifikasi); alur **Keuangan/BOS** (unggah → arsip → ekspor ZIP); alur **OCR & Pencarian** (unggah teks → jalankan OCR → cari + facet → lihat teks); alur **Analitik** (metrik sekolah → opt-in → dasbor jaringan); alur **Integrasi & Pengaturan** (simpan SSO → konfigurasi + jalankan backup → buat/cabut API key → webhook + validasi URL → daftar agent on-prem); proteksi rute; smoke halaman |
+| Project | Konfigurasi | Lokasi | Cakupan |
+|---|---|---|---|
+| `api` | `playwright.config.ts` | `tests/api/` | End-to-end lewat HTTP API (`APIRequestContext`) |
+| `web` | `playwright.config.ts` | `tests/web/` | Alur browser (Chromium): daftar → buat sekolah → tahun ajaran/semester/kelas → generate folder → unggah → legal hold → versioning; alur **E-Raport** (siswa → mapel → nilai → raport PDF); alur **E-Ijazah** (batch → terbitkan → verifikasi); alur **Keuangan/BOS** (unggah → arsip → ekspor ZIP); alur **OCR & Pencarian** (unggah teks → jalankan OCR → cari + facet → lihat teks); alur **Analitik** (metrik sekolah → opt-in → dasbor jaringan); alur **Integrasi & Pengaturan** (simpan SSO → konfigurasi + jalankan backup → buat/cabut API key → webhook + validasi URL → daftar agent on-prem); proteksi rute; smoke halaman |
+| `docs` | `playwright.screenshots.config.ts` | `tests/docs/` | **Generator tangkapan layar** untuk `docs/panduan-pengguna/` (bukan bagian suite default) |
 
 ## Prasyarat
 
@@ -82,18 +83,36 @@ tests/
 │   ├── 13-retensi-otomatis.spec.ts    # Retensi otomatis: enqueue-all, scheduler, notifikasi H-1, opt-out
 │   ├── 14-ocr-search.spec.ts          # OCR: ekstraksi teks, reprocess, skip gambar; pencarian full-text + facet
 │   └── 15-integrations.spec.ts        # Backup, on-prem agent, API key, webhook, Dapodik, SSO config
-└── web/
-    ├── home.spec.ts                 # smoke halaman landing
-    ├── guard.spec.ts                # proteksi rute (middleware redirect ke /login)
-    ├── flow.spec.ts                 # daftar -> sekolah -> akademik -> folder -> unggah -> legal hold
-    ├── eraport.spec.ts              # alur E-Raport di browser (siswa -> nilai -> raport PDF)
-    ├── eijazah.spec.ts              # alur E-Ijazah di browser (batch -> terbitkan -> verifikasi)
-    ├── keuangan.spec.ts             # alur Keuangan/BOS di browser (unggah -> arsip -> ekspor ZIP)
-    ├── pencarian.spec.ts            # alur OCR & Pencarian di browser (unggah teks -> OCR -> cari + facet)
-    ├── analitik.spec.ts             # alur Analitik di browser (metrik sekolah -> opt-in -> dasbor jaringan)
-    ├── pengaturan.spec.ts           # alur Integrasi & Pengaturan (SSO, backup, API key, webhook, agent on-prem)
-    └── versioning.spec.ts           # alur versioning di browser (catatan -> pulihkan -> bandingkan)
+├── web/
+│   ├── home.spec.ts                 # smoke halaman landing
+│   ├── guard.spec.ts                # proteksi rute (middleware redirect ke /login)
+│   ├── flow.spec.ts                 # daftar -> sekolah -> akademik -> folder -> unggah -> legal hold
+│   ├── eraport.spec.ts              # alur E-Raport di browser (siswa -> nilai -> raport PDF)
+│   ├── eijazah.spec.ts              # alur E-Ijazah di browser (batch -> terbitkan -> verifikasi)
+│   ├── keuangan.spec.ts             # alur Keuangan/BOS di browser (unggah -> arsip -> ekspor ZIP)
+│   ├── pencarian.spec.ts            # alur OCR & Pencarian di browser (unggah teks -> OCR -> cari + facet)
+│   ├── analitik.spec.ts             # alur Analitik di browser (metrik sekolah -> opt-in -> dasbor jaringan)
+│   ├── pengaturan.spec.ts           # alur Integrasi & Pengaturan (SSO, backup, API key, webhook, agent on-prem)
+│   └── versioning.spec.ts           # alur versioning di browser (catatan -> pulihkan -> bandingkan)
+└── docs/
+    ├── provision.ts                 # penyiapan sekolah + 5 akun peran + data demo (idempoten)
+    └── panduan.spec.ts              # tangkapan layar per peran untuk docs/panduan-pengguna/
 ```
+
+### Generator tangkapan layar dokumentasi
+
+`tests/docs/` bukan bagian suite default; jalankan dengan konfigurasi terpisah:
+
+```bash
+npm run docs:screenshots --workspace @arsip/e2e
+# hasil: docs/panduan-pengguna/gambar/*.png (di akar repo)
+```
+
+Generator menyiapkan sekolah demo *SMA Negeri 1 Nusantara* (5 akun peran, kata sandi
+`Rahasia123!`) lewat API, lalu memotret halaman tiap peran dan **memverifikasi**
+halaman tanpa galat serta panel role-specific sesuai hak akses. Aman dijalankan
+berulang. Setel `DOCS_SCHOOL_NAME` untuk sekolah demo terpisah. Panduan lengkap:
+[`docs/panduan-pengguna/README.md`](../../docs/panduan-pengguna/README.md).
 
 ### Catatan fixture API
 

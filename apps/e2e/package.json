@@ -9,6 +9,7 @@
     "test:web": "playwright test --project=web",
     "test:headed": "playwright test --project=web --headed",
     "test:ui": "playwright test --ui",
+    "docs:screenshots": "playwright test --config=playwright.screenshots.config.ts",
     "report": "playwright show-report",
     "install:browsers": "playwright install chromium"
   },
